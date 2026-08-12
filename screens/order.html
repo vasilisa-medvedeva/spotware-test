@@ -448,6 +448,7 @@
     transition: border-color 200ms ease, box-shadow 200ms ease;
   }
   .field-amount.is-focus { border: 2px solid var(--text-primary); padding: 15px; }
+  .field-amount[hidden] { display: none; }
   .field-amount .fa-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
   .field-amount .fa-value { display: flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
   .field-amount .caret { display: none; width: 2px; height: 21px; border-radius: 999px; background: var(--text-primary); animation: caretBlink 1.1s steps(1) infinite; }
@@ -485,6 +486,32 @@
     transition: opacity 90ms ease-out;
   }
   .add-level svg path { stroke: currentColor; }
+
+  /* ---- the take-profit ladder (Levels=Ladder variant) ---- */
+  .m-sechead .m-titles { display: flex; flex-direction: column; gap: 2px; }
+  .m-sechead .m-titles [hidden] { display: none; }
+  .tp-levels { display: flex; flex-direction: column; gap: 4px; width: 100%; }
+  .tp-levels[hidden] { display: none; }
+  .tp-level {
+    height: 64px; padding: 12px 16px;
+    border-radius: var(--r-surface); background: var(--surface-card);
+    display: flex; align-items: center; gap: 12px;
+    animation: levelIn 420ms var(--spring) backwards;
+  }
+  @keyframes levelIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: none; }
+  }
+  .tp-level .col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .tp-level .col .sub { color: var(--text-secondary); }
+  .tp-level .col--profit { align-items: flex-end; text-align: right; }
+  .tp-level .col--profit .val { color: var(--data-positive); }
+  .tp-level .remove {
+    flex: none; width: 32px; height: 32px;
+    border-radius: var(--r-surface);
+    background: var(--neutral-200);
+    display: flex; align-items: center; justify-content: center;
+  }
 
   /* ---- market range sheet ---- */
   .m-note { color: var(--text-secondary); }
@@ -834,9 +861,12 @@
             <g class="down" style="opacity:0"><path d="M1.25 1.25L7.75 7.25L12.3 3.02L21.25 12.25"/><path d="M14.75 12.25H21.25V6.25"/></g>
           </svg>
         </span>
-        <span class="t-title">Take profit</span>
+        <span class="m-titles">
+          <span class="t-title">Take profit</span>
+          <span class="t-caption" id="tpEst" hidden>Estimated profit: up to €37.03</span>
+        </span>
       </div>
-      <div style="display: flex; flex-direction: column; gap: 8px;">
+      <div style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
         <div class="field-amount" id="tpField">
           <span class="fa-text">
             <span class="fa-value"><span class="t-body-em" id="mTpEur">+€21.78</span><span class="caret"></span></span>
@@ -846,6 +876,7 @@
             <svg width="10" height="10" viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>
           </button>
         </div>
+        <div class="tp-levels" id="tpLevels" hidden></div>
         <button class="add-level" id="addLevel">
           <svg width="18" height="18" viewBox="0 0 18 18"><path d="M9 1v16M1 9h16" stroke-width="2" stroke-linecap="round"/></svg>
           <span class="t-body-em">Add level</span>
@@ -946,8 +977,16 @@
     tpPips: 40,  tpOn: true,
     trailing: false, breakeven: true,
     rangeAuto: true, rangePips: 5,
+    tpLadder: 0,           // 0 = a single take-profit; 2..4 = the level ladder
     comment: '',
   };
+
+  /* the ladder splits the position the way the mockup does: level i sits at
+     40·i pips, and the quantity split per ladder size is fixed */
+  const LADDER_QTY = { 2: [50, 50], 3: [50, 30, 20], 4: [40, 30, 20, 10] };
+  const LADDER_MAX = 4;
+  const ladderLevels = () => (LADDER_QTY[state.tpLadder] || []).map((qty, i) => ({ pips: 40 * (i + 1), qty }));
+  const ladderTotal = () => ladderLevels().reduce((s, l) => s + l.pips * l.qty / 100 * state.lots * EUR_PER_PIP_LOT, 0);
 
   const $ = id => document.getElementById(id);
   const screenEl = $('screen');
@@ -1084,15 +1123,45 @@
     const sl = state.lots * state.slPips * EUR_PER_PIP_LOT;
     const tp = state.lots * state.tpPips * EUR_PER_PIP_LOT;
     const slP = Math.round(state.slPips), tpP = Math.round(state.tpPips);
+    const ladder = state.tpLadder >= 2;
     $('slPips').textContent = state.slOn ? '−' + slP + ' pips' : 'Not set';
     $('slEur').textContent = state.slOn ? '−' + fmtEur(sl) : '';
-    $('tpPips').textContent = state.tpOn ? '+' + tpP + ' pips' : 'Not set';
-    $('tpEur').textContent = state.tpOn ? '+' + fmtEur(tp) : '';
+    // with a ladder, the block half sums it up
+    $('tpPips').textContent = ladder ? state.tpLadder + ' levels'
+                            : (state.tpOn ? '+' + tpP + ' pips' : 'Not set');
+    $('tpEur').textContent = ladder ? '+' + fmtEur(ladderTotal())
+                           : (state.tpOn ? '+' + fmtEur(tp) : '');
     // sheet mirrors the block; a field mid-edit shows the digits as typed
     $('mSlEur').textContent = kbTarget === 'sl' ? '−€' + kbStr : (state.slOn ? '−' + fmtEur(sl) : 'Not set');
     $('mSlSub').textContent = state.slOn ? slP + ' pips below price' : 'Tap to set';
     $('mTpEur').textContent = kbTarget === 'tp' ? '+€' + kbStr : (state.tpOn ? '+' + fmtEur(tp) : 'Not set');
     $('mTpSub').textContent = state.tpOn ? tpP + ' pips above price' : 'Tap to set';
+    renderLadder();
+  }
+
+  /* ---- the ladder itself: rows in the sheet, estimate under the title ---- */
+  function renderLadder() {
+    const ladder = state.tpLadder >= 2;
+    $('tpField').hidden = ladder;
+    $('tpLevels').hidden = !ladder;
+    $('tpEst').hidden = !ladder;
+    if (!ladder) return;
+    $('tpEst').textContent = 'Estimated profit: up to ' + fmtEur(ladderTotal());
+    $('tpLevels').innerHTML = ladderLevels().map((l, i) =>
+      '<div class="tp-level" style="animation-delay:' + (i * 50) + 'ms">'
+      + '<span class="col"><span class="t-body">' + l.pips + '</span><span class="sub t-micro-r">pips</span></span>'
+      + '<span class="col"><span class="t-body">' + l.qty + '%</span><span class="sub t-micro-r">quantity</span></span>'
+      + '<span class="col col--profit"><span class="val t-body-em">+' + fmtEur(l.pips * l.qty / 100 * state.lots * EUR_PER_PIP_LOT) + '</span><span class="sub t-micro-r">profit</span></span>'
+      + '<button class="remove" data-remove aria-label="Remove level">'
+      + '<svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>'
+      + '</button></div>'
+    ).join('');
+    $('tpLevels').querySelectorAll('[data-remove]').forEach(b => b.addEventListener('click', () => {
+      state.tpLadder = state.tpLadder > 2 ? state.tpLadder - 1 : 0;
+      state.tpOn = true;
+      renderAutoClose();
+      track('flow_level_removed', { levels: state.tpLadder });
+    }));
   }
 
   document.querySelectorAll('[data-clear]').forEach(b => b.addEventListener('click', e => {
@@ -1105,7 +1174,13 @@
   $('tpField').addEventListener('click', () => kbOpen('tp'));
   $('swTrailing').addEventListener('click', () => { state.trailing = !state.trailing; $('swTrailing').classList.toggle('is-on', state.trailing); });
   $('swBreakeven').addEventListener('click', () => { state.breakeven = !state.breakeven; $('swBreakeven').classList.toggle('is-on', state.breakeven); });
-  $('addLevel').addEventListener('click', () => track('flow_addlevel'));
+  $('addLevel').addEventListener('click', () => {
+    if (kbTarget === 'tp') kbClose();
+    state.tpLadder = state.tpLadder === 0 ? 2 : Math.min(LADDER_MAX, state.tpLadder + 1);
+    state.tpOn = true;
+    renderAutoClose();
+    track('flow_addlevel', { levels: state.tpLadder });
+  });
 
   /* ===================== modal sheets ===================== */
   let openSheet = null;
@@ -1404,7 +1479,7 @@
       setSide('buy'); setLots(0.10, false);
       state.trailing = false; state.breakeven = true;
       state.rangeAuto = true; state.rangePips = 5; state.comment = '';
-      state.slOn = true; state.tpOn = true;
+      state.slOn = true; state.tpOn = true; state.tpLadder = 0;
       syncControls(); renderRangeRow(); renderCommentRow(); renderVolume();
       $('osheet').scrollTop = 0;
       await sleep(900);
