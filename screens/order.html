@@ -99,38 +99,27 @@
     background: var(--surface-control-pressed);
   }
 
-  /* the sheet is the scroll container; its top edge breathes between postures */
+  /* one tall sheet, one scroll: chart on top, the form below (151:2579 is
+     the top of this very screen, 266:1430 its bottom) */
   .osheet {
     position: absolute; top: 70px; left: 0; right: 0; bottom: 0;
     border-radius: 20px 20px 0 0;
     background: var(--surface-control);
     overflow-y: auto; overflow-x: hidden;
     scrollbar-width: none;
-    transition: top 460ms var(--spring), background-color 460ms ease;
     z-index: 2;
   }
   .osheet::-webkit-scrollbar { display: none; }
-  .order.is-expanded .osheet { top: 66px; background: var(--surface-page); }
 
   .grabber {
     display: block;
     width: 100%; padding: 5px 0 0;
-    touch-action: none;
   }
   .grabber i {
     display: block; width: 36px; height: 5px; margin: 0 auto;
     border-radius: 999px; background: var(--labels-tertiary);
   }
   .grabber:active { opacity: 1; }   /* the grabber is a handle, not a button */
-
-  /* ---- chart zone: folds shut when the sheet expands ---- */
-  .chart-zone {
-    max-height: 260px;
-    opacity: 1;
-    overflow: hidden;
-    transition: max-height 460ms var(--spring), opacity 300ms ease 100ms;
-  }
-  .order.is-expanded .chart-zone { max-height: 0; opacity: 0; transition: max-height 460ms var(--spring), opacity 200ms ease; }
 
   .chips {
     display: flex; gap: 8px;
@@ -223,7 +212,6 @@
     background: var(--surface-card);
     display: flex; flex-direction: column; gap: 24px;
   }
-  .order.is-expanded .main-card { margin-top: 12px; }
 
   /* Sell | Buy */
   .sellbuy { position: relative; height: 56px; border-radius: 24px; background: var(--surface-control); }
@@ -332,14 +320,8 @@
   .trend path { stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; fill: none; }
   .trend .up, .trend .down { transition: opacity 240ms ease; }
 
-  /* ---- extra rows + share (live only in the expanded posture) ---- */
-  .rows-extra {
-    display: flex; flex-direction: column; gap: 8px;
-    max-height: 0; opacity: 0; overflow: hidden;
-    margin-top: -24px;   /* swallows the card gap while hidden */
-    transition: max-height 460ms var(--spring), opacity 240ms ease, margin-top 460ms var(--spring);
-  }
-  .order.is-expanded .rows-extra { max-height: 130px; opacity: 1; margin-top: 0; transition: max-height 460ms var(--spring), opacity 300ms ease 120ms, margin-top 460ms var(--spring); }
+  /* ---- Market range / Comment rows ---- */
+  .rows-extra { display: flex; flex-direction: column; gap: 8px; }
   .rowv {
     height: 56px; padding: 16px;
     border-radius: var(--r-card); background: var(--surface-control);
@@ -350,12 +332,10 @@
 
   .share {
     display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: calc(100% - 32px);           /* buttons shrink to fit — this one spans the card */
     height: 64px; margin: 32px 16px 0;
     border-radius: var(--r-surface); background: var(--surface-card);
-    max-height: 0; margin-top: 0; opacity: 0; overflow: hidden;
-    transition: max-height 460ms var(--spring), margin-top 460ms var(--spring), opacity 240ms ease;
   }
-  .order.is-expanded .share { max-height: 64px; margin-top: 32px; opacity: 1; transition: max-height 460ms var(--spring), margin-top 460ms var(--spring), opacity 300ms ease 140ms; }
 
   .osheet .tail { height: 150px; }
 
@@ -603,9 +583,9 @@
 <div id="screen">
 
   <!-- ============ ORDER ============
-       Opens in the tall posture (266:1430): rows and Share signal in reach.
-       Pulling the grabber down folds the sheet back and reveals the chart. -->
-  <div class="order is-expanded" id="order">
+       One tall screen: 151:2579 draws its top, 266:1430 its bottom.
+       The sheet scrolls; the bottom bar stays put. -->
+  <div class="order" id="order">
     <div class="statusbar">
       <div class="sb-time">9:41</div>
       <div class="sb-levels">
@@ -1189,25 +1169,6 @@
   $('commentInput').addEventListener('input', e => { state.comment = e.target.value; });
   $('commentDone').addEventListener('click', () => { track('flow_comment_done', { has_note: !!state.comment.trim() }); sheetClose(false); });
 
-  /* ===================== the sheet's two postures ===================== */
-  const order = $('order');
-  function setExpanded(on) {
-    if (order.classList.contains('is-expanded') === on) return;
-    order.classList.toggle('is-expanded', on);
-    $('osheet').scrollTop = 0;
-    track('flow_posture', { posture: on ? 'expanded' : 'chart' });
-  }
-  $('grabber').addEventListener('click', () => setExpanded(!order.classList.contains('is-expanded')));
-  // a drag on the grabber follows the finger's verdict
-  let gy = null;
-  $('grabber').addEventListener('pointerdown', e => { gy = e.clientY; });
-  $('grabber').addEventListener('pointerup', e => {
-    if (gy === null) return;
-    const dy = e.clientY - gy; gy = null;
-    if (dy < -24) setExpanded(true);
-    else if (dy > 24) setExpanded(false);
-  });
-
   /* ===================== share ===================== */
   $('shareBtn').addEventListener('click', () => track('flow_share'));
   $('footerMargin').addEventListener('click', () => track('flow_margin_detail'));
@@ -1390,7 +1351,6 @@
       { sel: '#rowRange',                                  wait: 1100 },
       { sel: '#rangePresets button[data-pips="5"]',        wait: 900 },
       { sel: '#rangeDone',                                 wait: 1000 },
-      { sel: '#grabber',                                   wait: 1200 },   // pull down: the chart comes out
       { sel: '#placeBtn',                                  wait: 2000 },
     ];
 
@@ -1429,7 +1389,7 @@
       state.rangeAuto = true; state.rangePips = 5; state.comment = '';
       state.slOn = true; state.tpOn = true;
       syncControls(); renderRangeRow(); renderCommentRow(); renderVolume();
-      setExpanded(true);   // back to the opening posture
+      $('osheet').scrollTop = 0;
       await sleep(900);
       cursor.classList.remove('is-away');
     }
