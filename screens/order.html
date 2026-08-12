@@ -92,7 +92,12 @@
   /* ============================================================
      ORDER — one screen, two postures (chart / expanded) + error
      ============================================================ */
-  .order { position: absolute; inset: 0; }
+  /* z-index 2 keeps the order above Positions until it has slid away */
+  .order {
+    position: absolute; inset: 0; z-index: 2;
+    transition: transform 560ms var(--spring);
+  }
+  .order.is-away { transform: translateY(103%); }
 
   .sheet-behind {
     position: absolute; top: 55px; left: 26px; width: 378px; height: 30px;
@@ -554,13 +559,187 @@
   }
   .comment-field input::placeholder { color: var(--text-secondary); }
 
-  /* the placed order answers with a press of the whole button */
-  @keyframes placePulse {
-    0%   { transform: scale(1); }
-    35%  { transform: scale(.96); }
-    100% { transform: scale(1); }
+  /* ---- placing: the label gives way to a spinner ---- */
+  .place .place-label { transition: opacity 180ms ease; }
+  .place.is-sending { pointer-events: none; }
+  .place.is-sending .place-label { opacity: 0; }
+  .place .spinner {
+    position: absolute; left: 50%; top: 50%;
+    width: 24px; height: 24px;
+    margin: -12px 0 0 -12px;
+    opacity: 0;
+    transition: opacity 180ms ease;
   }
-  .place.is-placed { animation: placePulse 360ms var(--spring); }
+  .place.is-sending .spinner { opacity: 1; }
+  .place .spinner svg { display: block; animation: spin 900ms linear infinite; }
+  .place .spinner circle {
+    fill: none; stroke: #fff; stroke-width: 2.5; stroke-linecap: round;
+    stroke-dasharray: 40 20;                       /* a ring with a gap, iOS-plain */
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ============================================================
+     POSITIONS — where the order lands (404:3211)
+     ============================================================ */
+  .positions {
+    position: absolute; inset: 0; z-index: 1;
+    background: var(--surface-card);
+    opacity: 0;
+    transform: scale(.96);
+    transition: transform 520ms var(--spring), opacity 300ms ease;
+    pointer-events: none;
+  }
+  .positions.is-live { opacity: 1; transform: none; pointer-events: auto; }
+  .positions .statusbar .sb-time { color: #000; }
+
+  .top-bar {
+    position: absolute; top: 62px; left: 0; right: 0;
+    display: flex; align-items: center; gap: 12px;
+    padding: 16px;
+  }
+  .top-bar .logo { width: 44px; height: 44px; }
+  .top-bar .search {
+    flex: 1; min-width: 0;
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px; border-radius: var(--r-card); background: #f2f2f7;
+    color: var(--text-secondary);
+  }
+  .top-bar .balance {
+    padding: 12px; border-radius: var(--r-card); background: #f2f2f7;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .pos-page {
+    position: absolute; top: 142px; left: 0; right: 0; bottom: 0;
+    border-radius: 32px 32px 0 0;
+    background: var(--surface-page);
+    padding: 16px;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .pos-seg {
+    display: flex; align-items: center;
+    height: 56px; padding: 4px;
+    border-radius: 24px; background: var(--surface-card);
+  }
+  .pos-seg .p-item {
+    flex: 1; height: 48px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    border-radius: var(--r-card);
+    color: var(--text-secondary);
+  }
+  .pos-seg .p-item.is-on { background: var(--surface-inverse); color: var(--text-on-inverse); }
+  .pos-seg .count {
+    min-width: 24px; height: 24px; padding: 0 6px;
+    border-radius: 999px; background: #fff; color: var(--text-primary);
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .pos-list { border-radius: 24px; background: var(--surface-card); overflow: hidden; }
+  .pos-row {
+    height: 72px; padding: 0 16px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  /* the row the order just became announces itself */
+  .pos-row.is-new { animation: rowIn 620ms var(--spring) 280ms backwards; }
+  @keyframes rowIn {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: none; }
+  }
+  .pos-row .lead { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; }
+  .pos-row .badge {
+    flex: none; width: 40px; height: 40px; border-radius: var(--r-card);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .pos-row .badge--win  { background: var(--surface-positive); color: var(--data-positive); }
+  .pos-row .badge--loss { background: var(--surface-negative); color: var(--data-negative); }
+  .pos-row .l { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .pos-row .sym-row { display: flex; align-items: center; gap: 8px; }
+  .pos-row .sub { color: var(--text-secondary); }
+  .pos-row .r { display: flex; flex-direction: column; gap: 2px; align-items: flex-end; text-align: right; }
+  .pos-row .pl { font-variant-numeric: tabular-nums; }
+  .pos-row .guard { color: var(--text-secondary); }
+  .pos-row .row-action { flex: none; width: 40px; height: 32px; }
+  .pos-row .remove {
+    width: 32px; height: 32px; margin-left: 8px;
+    border-radius: var(--r-surface); background: var(--surface-control);
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .pos-summary {
+    border-radius: var(--r-card); background: var(--surface-card);
+    padding: 16px;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .pos-summary .head { display: flex; flex-direction: column; gap: 2px; }
+  .pos-summary .pl-line { font-variant-numeric: tabular-nums; }
+  .pos-summary .pl-line.win  { color: var(--data-positive); }
+  .pos-summary .pl-line.loss { color: var(--data-negative); }
+  .pos-summary .count-line { color: var(--text-secondary); }
+  .pos-summary .close-all {
+    height: 64px;
+    border-radius: var(--r-surface); background: var(--surface-control);
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .fab {
+    position: absolute; right: 17px; bottom: 116px;
+    display: flex; align-items: center; gap: 8px;
+    padding: 16px;
+    border-radius: 999px; background: var(--surface-inverse);
+    color: #fff;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, .22);
+  }
+  .positions.is-live .fab { animation: fabIn 560ms cubic-bezier(0.22, 1.2, 0.36, 1) 460ms backwards; }
+  @keyframes fabIn {
+    from { opacity: 0; transform: translateY(18px) scale(.9); }
+    to   { opacity: 1; transform: none; }
+  }
+  .fab .fab-ic { position: relative; width: 32px; height: 32px; }
+  .fab .fab-ic img { position: absolute; }
+  .fab .fab-ic .board { left: 8px; top: 2px; width: 17px; height: 26.6px; }
+  .fab .fab-ic .badge { left: 19.2px; top: 20.2px; width: 11.2px; height: 11.2px; }
+
+  .nav-bar {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    display: flex; align-items: flex-start; justify-content: space-between;
+    padding: 8px 0 24px;
+    background: var(--surface-card);
+    border-top: 1px solid var(--border-divider);
+  }
+  .nav-item {
+    flex: 1; min-width: 0;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    padding: 12px 8px;
+    color: var(--text-secondary);
+  }
+  .nav-item.is-on { color: var(--text-primary); }
+  .nav-item .ic { position: relative; width: 24px; height: 24px; }
+  .nav-item .ic img { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+  .nav-item .nbadge {
+    position: absolute; left: 20px; top: -7px;
+    width: 18px; height: 18px;
+    border-radius: 999px; background: var(--surface-inverse); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; line-height: 16px; font-weight: 500;
+  }
+
+  /* ---- Toast / Filled (103:328) ---- */
+  .toast {
+    /* a banner over the page, clear of the top bar (which ends at 142) */
+    position: absolute; left: 16px; right: 16px; top: 158px; z-index: 20;
+    display: flex; align-items: center; gap: 12px;
+    padding: 16px;
+    border-radius: var(--r-card);
+    background: var(--surface-inverse);
+    color: var(--text-on-inverse);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, .28);
+    opacity: 0;
+    transform: translateY(-14px) scale(.98);
+    transition: opacity 260ms ease, transform 420ms var(--spring);
+    pointer-events: none;
+  }
+  .toast.is-live { opacity: 1; transform: none; }
+  .toast .label { flex: 1; min-width: 0; }
 
   /* ================= the iOS keyboard (built from the iOS 26 kit) =================
      Two boards: a number pad for the amount fields, QWERTY for the note.
@@ -802,12 +981,140 @@
     </div>
 
     <div class="bottom-bar">
-      <button class="place t-button" id="placeBtn">Place order</button>
+      <button class="place t-button" id="placeBtn">
+        <span class="place-label" id="placeLabel">Place order</span>
+        <span class="spinner" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/></svg>
+        </span>
+      </button>
       <button class="footer-margin pressable" id="footerMargin">
         <span class="t-control" id="footerText">€116.85 / 1000.00</span>
         <svg width="16" height="16" viewBox="0 0 16 16"><path d="M6 3.5L10.5 8 6 12.5" stroke="#232326" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
       </button>
     </div>
+  </div>
+
+  <!-- ============ POSITIONS (404:3211) ============ -->
+  <div class="positions" id="positions">
+    <div class="statusbar">
+      <div class="sb-time">9:41</div>
+      <div class="sb-levels">
+        <img src="../assets/figma/sb-cellular-dark.svg" width="19.2" height="12.2" alt="">
+        <img src="../assets/figma/sb-wifi-dark.svg" width="17.1" height="12.3" alt="">
+        <img src="../assets/figma/sb-battery-dark.svg" width="27.3" height="13" alt="">
+      </div>
+    </div>
+
+    <div class="top-bar">
+      <img class="logo" src="../assets/figma/ctrader-logo.png" alt="cTrader">
+      <div class="search">
+        <img src="../assets/figma/icon-search.svg" width="17" height="17" alt="">
+        <span class="t-body">Search</span>
+      </div>
+      <div class="balance t-body-em" id="posBalance">€1 004.80</div>
+      <img src="../assets/figma/icon-collapse.svg" width="16" height="20" alt="">
+    </div>
+
+    <div class="pos-page">
+      <div class="pos-seg">
+        <div class="p-item is-on">
+          <span class="t-button">Positions</span>
+          <span class="count t-body-em" id="posCount">4</span>
+        </div>
+        <div class="p-item"><span class="t-button">Orders</span></div>
+        <div class="p-item"><span class="t-button">History</span></div>
+      </div>
+
+      <div class="pos-list">
+        <div class="pos-row">
+          <div class="lead">
+            <span class="badge badge--win">
+              <svg class="trend" width="22" height="14" viewBox="0 0 22.5 13.5">
+                <path d="M1.25 12.25L7.75 6.25L12.3 10.48L21.25 1.25"/><path d="M14.75 1.25H21.25V7.25"/>
+              </svg>
+            </span>
+            <span class="l">
+              <span class="t-body-em">AUDUSD</span>
+              <span class="sub t-micro-r">0.33 lots</span>
+            </span>
+          </div>
+          <span class="r">
+            <span class="pl t-body-em">−€2.11</span>
+            <span class="guard t-micro-r">Stop −€61</span>
+          </span>
+          <span class="row-action">
+            <span class="remove">
+              <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8" stroke="#232326" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </span>
+          </span>
+        </div>
+
+        <!-- the order just placed joins its symbol's group -->
+        <div class="pos-row is-new" id="newRow">
+          <div class="lead">
+            <span class="badge badge--loss" id="newBadge">
+              <svg class="trend" width="22" height="14" viewBox="0 0 22.5 13.5" id="newTrend">
+                <g class="down"><path d="M1.25 1.25L7.75 7.25L12.3 3.02L21.25 12.25"/><path d="M14.75 12.25H21.25V6.25"/></g>
+                <g class="up" style="opacity:0"><path d="M1.25 12.25L7.75 6.25L12.3 10.48L21.25 1.25"/><path d="M14.75 1.25H21.25V7.25"/></g>
+              </svg>
+            </span>
+            <span class="l">
+              <span class="sym-row">
+                <span class="t-body-em">GBPJPY</span>
+                <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 8l5 5 5-5" stroke="#232326" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+              </span>
+              <span class="sub t-micro-r" id="newSub">3 positions · 0.12 lots</span>
+            </span>
+          </div>
+          <span class="r">
+            <span class="pl t-body-em" id="newPl">+€6.91</span>
+            <span class="guard t-micro-r" id="newGuard">Stop −€13.07</span>
+          </span>
+          <span class="row-action">
+            <span class="remove">
+              <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8" stroke="#232326" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </span>
+          </span>
+        </div>
+      </div>
+
+      <div class="pos-summary">
+        <div class="head">
+          <span class="pl-line win t-body-em" id="sumPl">+€4.80 open P&amp;L</span>
+          <span class="count-line t-body" id="sumCount">4 positions</span>
+        </div>
+        <button class="close-all t-button">Close all</button>
+      </div>
+    </div>
+
+    <button class="fab" id="fabNew">
+      <span class="fab-ic">
+        <img class="board" src="../assets/figma/fab-board.svg" alt="">
+        <img class="badge" src="../assets/figma/fab-union.svg" alt="">
+      </span>
+      <span class="t-body-em">New order</span>
+    </button>
+
+    <div class="nav-bar">
+      <div class="nav-item"><span class="ic"><img src="../assets/figma/nav-markets.svg" width="17" height="16" alt=""></span><span class="t-micro">Markets</span></div>
+      <div class="nav-item"><span class="ic"><img src="../assets/figma/nav-charts.svg" width="21" height="17" alt=""></span><span class="t-micro">Charts</span></div>
+      <div class="nav-item is-on">
+        <span class="ic">
+          <img src="../assets/figma/nav-positions.svg" width="19" height="19" alt="">
+          <span class="nbadge" id="navCount">4</span>
+        </span>
+        <span class="t-micro">Positions</span>
+      </div>
+      <div class="nav-item"><span class="ic"><img src="../assets/figma/nav-blotter.svg" width="20" height="17.5" alt=""></span><span class="t-micro">Blotter</span></div>
+      <div class="nav-item"><span class="ic"><img src="../assets/figma/nav-myctrader.svg" width="18" height="17" alt=""></span><span class="t-micro">My cTrader</span></div>
+    </div>
+  </div>
+
+  <!-- Toast / Filled (103:328) -->
+  <div class="toast" id="toast">
+    <img src="../assets/figma/toast-check.svg" width="17" height="14" alt="">
+    <span class="label t-body-em" id="toastLabel">GBPJPY order filled</span>
+    <svg width="20" height="20" viewBox="0 0 20 20"><path d="M7.5 4.5L13 10l-5.5 5.5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
   </div>
 
   <!-- ============ MODAL SHEETS ============ -->
@@ -1038,10 +1345,10 @@
     const place = $('placeBtn');
     if (over) {
       place.classList.add('is-disabled');
-      place.textContent = 'Not enough funds · €' + Math.round(margin - BALANCE) + ' short';
+      $('placeLabel').textContent = 'Not enough funds · €' + Math.round(margin - BALANCE) + ' short';
     } else {
       place.classList.remove('is-disabled');
-      place.textContent = 'Place order';
+      $('placeLabel').textContent = 'Place order';
     }
     $('footerText').textContent = fmtEur(margin) + ' / 1000.00';
   }
@@ -1286,15 +1593,61 @@
   $('shareBtn').addEventListener('click', () => track('flow_share'));
   $('footerMargin').addEventListener('click', () => track('flow_margin_detail'));
 
-  /* ===================== place order =====================
-     Where the order lands (Positions) is the next screen to build —
-     for now the button answers the tap and the numbers stay honest. */
+  /* ===================== place order → Positions =====================
+     The button holds the wait itself: the label fades out, a spinner turns
+     in its place, and only once the fill comes back does the sheet slide
+     away to Positions with the toast riding in behind it. */
+  const order = $('order'), positions = $('positions'), toast = $('toast');
+  let toastTimer = null;
+
   $('placeBtn').addEventListener('click', () => {
     track('flow_place', { side: state.side, lots: state.lots, sl: state.slOn, tp: state.tpOn });
     const b = $('placeBtn');
-    b.classList.remove('is-placed');
-    void b.offsetWidth;               // restart the pulse on every tap
-    b.classList.add('is-placed');
+    b.classList.add('is-sending');
+
+    setTimeout(() => {                       // the round trip to the server
+      b.classList.remove('is-sending');
+      fillPositions();
+      positions.classList.add('is-live');
+      order.classList.add('is-away');
+      // the toast lands once the new screen is settled, not on top of the ride
+      setTimeout(() => {
+        $('toastLabel').textContent = 'GBPJPY order filled';
+        toast.classList.add('is-live');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toast.classList.remove('is-live'), 3400);
+      }, 420);
+      track('flow_positions');
+    }, 1400);
+  });
+
+  /* the list tells the truth about the order that was just placed */
+  function fillPositions() {
+    const sell = state.side === 'sell';
+    const lots = state.lots;
+    // the new position joins the GBPJPY group: 2 already there + this one
+    const groupLots = Math.round((0.02 + lots) * 100) / 100;
+    $('newSub').textContent = '3 positions · ' + fmt2(groupLots) + ' lots';
+    $('newBadge').className = 'badge ' + (sell ? 'badge--loss' : 'badge--win');
+    $('newTrend').querySelector('.up').style.opacity = sell ? 0 : 1;
+    $('newTrend').querySelector('.down').style.opacity = sell ? 1 : 0;
+    // a fresh position opens near break-even; the group's older two carry the gain
+    const groupPl = 6.91 - lots * 0.5;
+    $('newPl').textContent = (groupPl >= 0 ? '+' : '−') + fmtEur(Math.abs(groupPl));
+    $('newGuard').textContent = state.slOn
+      ? 'Stop −' + fmtEur(state.lots * state.slPips * EUR_PER_PIP_LOT + 2.18)
+      : 'No stop';
+    const total = groupPl - 2.11;
+    $('sumPl').textContent = (total >= 0 ? '+' : '−') + fmtEur(Math.abs(total)) + ' open P&L';
+    $('sumPl').className = 'pl-line ' + (total >= 0 ? 'win' : 'loss') + ' t-body-em';
+  }
+
+  /* New order brings the sheet back up over Positions */
+  $('fabNew').addEventListener('click', () => {
+    toast.classList.remove('is-live');
+    order.classList.remove('is-away');
+    setTimeout(() => positions.classList.remove('is-live'), 560);
+    track('flow_neworder_again');
   });
 
   /* ===================== the chart breathes ===================== */
@@ -1503,7 +1856,8 @@
       { sel: '#rowRange',                                  wait: 1100 },
       { sel: '#rangePresets button[data-pips="5"]',        wait: 900 },
       { sel: '#rangeDone',                                 wait: 1000 },
-      { sel: '#placeBtn',                                  wait: 2000 },
+      { sel: '#placeBtn',                                  wait: 4200 },   // spinner + ride + toast
+      { sel: '#fabNew',                                    wait: 1400 },
     ];
 
     const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -1542,6 +1896,9 @@
       state.slOn = true; state.tpOn = true; state.tpLadder = 0;
       syncControls(); renderRangeRow(); renderCommentRow(); renderVolume();
       $('osheet').scrollTop = 0;
+      toast.classList.remove('is-live');
+      positions.classList.remove('is-live');
+      order.classList.remove('is-away');
       await sleep(900);
       cursor.classList.remove('is-away');
     }
