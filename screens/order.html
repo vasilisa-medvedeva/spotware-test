@@ -636,6 +636,7 @@
 
   .pos-list { border-radius: 24px; background: var(--surface-card); overflow: hidden; }
   .pos-row {
+    width: 100%;          /* the group row is a <button>, which would shrink to fit */
     height: 72px; padding: 0 16px;
     display: flex; align-items: center; gap: 12px;
   }
@@ -660,6 +661,38 @@
   .pos-row .guard { color: var(--text-secondary); }
   .pos-row .row-action { flex: none; width: 40px; height: 32px; }
   .pos-row .remove {
+    width: 32px; height: 32px; margin-left: 8px;
+    border-radius: var(--r-surface); background: var(--surface-control);
+    display: flex; align-items: center; justify-content: center;
+  }
+  /* the disclosure turns as the group opens */
+  .pos-row .disclosure { transition: transform 320ms var(--spring); }
+  .pos-group.is-open .disclosure { transform: rotate(180deg); }
+
+  /* ---- the group's children ----
+     They align under the group's own label: 16 row padding + 40 badge + 12 gap.
+     Closed, the list has no height at all; opening lets it roll down and the
+     rows arrive one after another. */
+  .pos-children {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 420ms var(--spring);
+  }
+  .pos-group.is-open + .pos-children { grid-template-rows: 1fr; }
+  .pos-children > .inner { overflow: hidden; min-height: 0; }
+  .pos-child {
+    height: 56px; padding: 0 16px 0 68px;
+    display: flex; align-items: center; gap: 12px;
+    opacity: 0; transform: translateY(-6px);
+    transition: opacity 240ms ease, transform 320ms var(--spring);
+  }
+  .pos-group.is-open + .pos-children .pos-child { opacity: 1; transform: none; }
+  .pos-child .l { flex: 1; min-width: 0; }
+  .pos-child .r { display: flex; flex-direction: column; gap: 2px; align-items: flex-end; text-align: right; }
+  .pos-child .pl { font-variant-numeric: tabular-nums; }
+  .pos-child .guard { color: var(--text-secondary); }
+  .pos-child .row-action { flex: none; width: 40px; height: 32px; }
+  .pos-child .remove {
     width: 32px; height: 32px; margin-left: 8px;
     border-radius: var(--r-surface); background: var(--surface-control);
     display: flex; align-items: center; justify-content: center;
@@ -1050,7 +1083,7 @@
         </div>
 
         <!-- the order just placed joins its symbol's group -->
-        <div class="pos-row is-new" id="newRow">
+        <button class="pos-row pos-group is-new" id="newRow">
           <div class="lead">
             <span class="badge badge--loss" id="newBadge">
               <svg class="trend" width="22" height="14" viewBox="0 0 22.5 13.5" id="newTrend">
@@ -1061,7 +1094,7 @@
             <span class="l">
               <span class="sym-row">
                 <span class="t-body-em">GBPJPY</span>
-                <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 8l5 5 5-5" stroke="#232326" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+                <svg class="disclosure" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 8l5 5 5-5" stroke="#232326" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
               </span>
               <span class="sub t-micro-r" id="newSub">3 positions · 0.12 lots</span>
             </span>
@@ -1075,7 +1108,9 @@
               <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8" stroke="#232326" stroke-width="1.8" stroke-linecap="round"/></svg>
             </span>
           </span>
-        </div>
+        </button>
+        <!-- the three positions behind the group, filled in from script -->
+        <div class="pos-children" id="newChildren"><div class="inner"></div></div>
       </div>
 
       <div class="pos-summary">
@@ -1621,30 +1656,62 @@
     }, 1400);
   });
 
-  /* the list tells the truth about the order that was just placed */
+  /* The list tells the truth about the order that was just placed. The new
+     position joins the GBPJPY group, which already holds two small ones —
+     so the group row is a sum and the children are the three of them. */
   function fillPositions() {
     const sell = state.side === 'sell';
     const lots = state.lots;
-    // the new position joins the GBPJPY group: 2 already there + this one
-    const groupLots = Math.round((0.02 + lots) * 100) / 100;
-    $('newSub').textContent = '3 positions · ' + fmt2(groupLots) + ' lots';
+    const stopEur = l => l * state.slPips * EUR_PER_PIP_LOT;
+
+    // ours, then the two that were already open
+    const kids = [
+      { lots: lots, pl: 65.3 * lots, stop: state.slOn ? stopEur(lots) : null },
+      { lots: 0.01, pl: 0.27, stop: stopEur(0.01) },
+      { lots: 0.01, pl: 0.11, stop: stopEur(0.01) },
+    ];
+    const groupLots = Math.round(kids.reduce((s, k) => s + k.lots, 0) * 100) / 100;
+    const groupPl = kids.reduce((s, k) => s + k.pl, 0);
+    const naked = kids.filter(k => k.stop === null).length;
+
+    $('newSub').textContent = kids.length + ' positions · ' + fmt2(groupLots) + ' lots';
     $('newBadge').className = 'badge ' + (sell ? 'badge--loss' : 'badge--win');
     $('newTrend').querySelector('.up').style.opacity = sell ? 0 : 1;
     $('newTrend').querySelector('.down').style.opacity = sell ? 1 : 0;
-    // a fresh position opens near break-even; the group's older two carry the gain
-    const groupPl = 6.91 - lots * 0.5;
-    $('newPl').textContent = (groupPl >= 0 ? '+' : '−') + fmtEur(Math.abs(groupPl));
-    $('newGuard').textContent = state.slOn
-      ? 'Stop −' + fmtEur(state.lots * state.slPips * EUR_PER_PIP_LOT + 2.18)
-      : 'No stop';
-    const total = groupPl - 2.11;
-    $('sumPl').textContent = (total >= 0 ? '+' : '−') + fmtEur(Math.abs(total)) + ' open P&L';
+    $('newPl').textContent = signEur(groupPl);
+    // protected as a whole, or the count that is not
+    $('newGuard').textContent = naked
+      ? naked + ' of ' + kids.length + ' no stop'
+      : 'Stop −' + fmtEur(kids.reduce((s, k) => s + k.stop, 0));
+
+    $('newChildren').querySelector('.inner').innerHTML = kids.map((k, i) =>
+      '<div class="pos-child" style="transition-delay:' + (i * 45) + 'ms">'
+      + '<span class="l t-body">' + fmt2(k.lots) + ' lots</span>'
+      + '<span class="r"><span class="pl t-body-em">' + signEur(k.pl) + '</span>'
+      + '<span class="guard t-micro-r">' + (k.stop === null ? 'No stop' : 'Stop −' + fmtEur(k.stop)) + '</span></span>'
+      + '<span class="row-action"><span class="remove">'
+      + '<svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8" stroke="#232326" stroke-width="1.8" stroke-linecap="round"/></svg>'
+      + '</span></span></div>'
+    ).join('');
+
+    const total = groupPl - 2.11;   // the AUDUSD position that was already there
+    $('sumPl').textContent = signEur(total) + ' open P&L';
     $('sumPl').className = 'pl-line ' + (total >= 0 ? 'win' : 'loss') + ' t-body-em';
+    $('posCount').textContent = $('navCount').textContent = kids.length + 1;
+    $('sumCount').textContent = (kids.length + 1) + ' positions';
   }
+  const signEur = n => (n >= 0 ? '+' : '−') + fmtEur(Math.abs(n));
+
+  /* the group opens onto the positions behind it */
+  $('newRow').addEventListener('click', () => {
+    const open = $('newRow').classList.toggle('is-open');
+    track('flow_group_toggle', { open: open });
+  });
 
   /* New order brings the sheet back up over Positions */
   $('fabNew').addEventListener('click', () => {
     toast.classList.remove('is-live');
+    $('newRow').classList.remove('is-open');
     order.classList.remove('is-away');
     setTimeout(() => positions.classList.remove('is-live'), 560);
     track('flow_neworder_again');
