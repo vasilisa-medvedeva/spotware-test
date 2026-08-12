@@ -380,30 +380,30 @@
   }
   #screen.is-sheet-open .dimmer { opacity: 1; pointer-events: auto; }
 
+  /* The sheet is ALWAYS full height (932 − 62 status bar) and only ever moves
+     by transform: at rest it peeks out just enough for its content
+     (translateY(--peek), set per sheet from script), with the keyboard it
+     rides to the top. One compositor-driven property — no layout per frame,
+     so the ride is silk. */
   .modal {
     position: absolute; left: 0; right: 0; bottom: 0; z-index: 11;
+    height: 870px;
     border-radius: var(--r-sheet) var(--r-sheet) 0 0;
     background: var(--surface-page);
     padding: 12px 16px 24px;
     display: flex; flex-direction: column; gap: 32px;
     transform: translateY(105%);
-    min-height: 0;
-    max-height: 932px;
-    transition: transform 420ms var(--spring), min-height 420ms var(--spring), max-height 420ms var(--spring), padding 420ms var(--spring);
+    transition: transform 460ms var(--spring);
     visibility: hidden;
   }
+  .modal.is-open { transform: translateY(var(--peek, 0px)); visibility: visible; }
+  .modal.is-leaving { visibility: visible; }
   /* `none`, not translateY(0): a live transform would trap the pinned
      Done button below in its own coordinate space */
-  .modal.is-open { transform: none; visibility: visible; }
-  .modal.is-leaving { visibility: visible; }
-  /* the keyboard opens the sheet to the whole screen (the status bar stays),
-     and the body scrolls — the bottom padding lets everything ride up
-     past the pinned Done and the board */
   .modal.is-full {
-    min-height: 870px;                 /* 932 - the 62px status bar */
-    max-height: 870px;
+    transform: none;
     overflow-y: auto;
-    padding-bottom: 360px;
+    padding-bottom: 360px;   /* room to ride everything past Done and the board */
     scrollbar-width: none;
   }
   .modal.is-full::-webkit-scrollbar { display: none; }
@@ -445,20 +445,13 @@
     background: var(--surface-card);
     border: 1px solid var(--neutral-300);
     display: flex; align-items: center; gap: 12px;
-    box-shadow: 0 0 0 0 rgba(35, 35, 38, 0);
-    transition: border-color 200ms ease, box-shadow 320ms ease;
+    transition: border-color 200ms ease;
   }
   /* focus wears the field's own meaning: loss-orange on Stop loss,
      profit-green on Take profit — the section badges' colors */
   .field-amount.is-focus { border-width: 2px; padding: 15px; }
-  #slField.is-focus {
-    border-color: var(--data-negative);
-    box-shadow: 0 0 0 4px rgba(240, 88, 36, .10);
-  }
-  #tpField.is-focus {
-    border-color: var(--data-positive);
-    box-shadow: 0 0 0 4px rgba(0, 147, 69, .10);
-  }
+  #slField.is-focus { border-color: var(--data-negative); }
+  #tpField.is-focus { border-color: var(--data-positive); }
   #slField.is-focus .caret { background: var(--data-negative); }
   #tpField.is-focus .caret { background: var(--data-positive); }
   .field-amount[hidden] { display: none; }
@@ -1151,6 +1144,7 @@
     $('mTpEur').textContent = kbTarget === 'tp' ? '+€' + kbStr : (state.tpOn ? '+' + fmtEur(tp) : 'Not set');
     $('mTpSub').textContent = state.tpOn ? tpP + ' pips above price' : 'Tap to set';
     renderLadder();
+    if (openSheet === 'mAutoclose') sheetFit();
   }
 
   /* ---- the ladder itself: rows in the sheet, estimate under the title ---- */
@@ -1203,8 +1197,21 @@
     openSheet = id;
     Object.assign(snapshot, JSON.parse(JSON.stringify(state)));
     screenEl.classList.add('is-sheet-open');
+    sheetFit(id);
     $(id).classList.add('is-open');
     track('flow_sheet_open', { sheet: id.slice(1).toLowerCase() });
+  }
+  /* how far the sheet rests: measure its natural height, let the fixed-height
+     sheet peek out exactly that much. Re-run whenever content grows (the
+     ladder) — the peek change rides the same spring, so the sheet lifts
+     itself to make room. */
+  function sheetFit(id) {
+    const el = $(id || openSheet);
+    if (!el || el.classList.contains('is-full')) return;
+    el.style.height = 'auto';
+    const natural = el.offsetHeight;
+    el.style.height = '';
+    el.style.setProperty('--peek', Math.max(0, 870 - natural) + 'px');
   }
   function sheetClose(revert) {
     if (!openSheet) return;
