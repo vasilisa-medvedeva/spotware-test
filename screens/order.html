@@ -1,0 +1,1247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=430, user-scalable=no">
+<meta name="robots" content="noindex, nofollow">
+<title>cTrader · New Order — prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="../assets/ga.js"></script>
+<style>
+  /* ===== tokens, straight from the Figma variables panel ===== */
+  :root {
+    --action-buy:  #009345;
+    --action-sell: #ff4800;
+    --fill-buy:    #33a96a;   /* slider fill = action tinted 20% white */
+    --fill-sell:   #ff6125;
+    --data-positive: #009345;
+    --data-negative: #f05824;
+    --data-ask: #009345;
+    --data-bid: #f05824;
+    --state-error: #c0143c;
+    --surface-page: #f2f2f2;
+    --surface-card: #ffffff;
+    --surface-control: #f7f7f7;
+    --surface-control-pressed: #e0e0e1;
+    --surface-inverse: #262627;
+    --surface-negative: #fdebe5;
+    --surface-positive: #e0f2e9;
+    --text-primary: #232326;
+    --text-secondary: #6a6a6f;
+    --text-on-inverse: #ffffff;
+    --border-divider: #f5f5f5;
+    --neutral-200: #e0e0e1;
+    --neutral-300: #d9d9d9;
+    --labels-tertiary: rgba(60, 60, 67, .3);
+    --r-surface: 16px;
+    --r-card: 20px;
+    --r-sheet: 24px;
+
+    /* the one spring every move in this prototype rides on (as in the Plata build) */
+    --spring: cubic-bezier(0.32, 0.72, 0, 1);
+    /* the side accent — flipped by .is-sell on #screen */
+    --side: var(--action-buy);
+    --side-fill: var(--fill-buy);
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    position: relative;
+    width: 430px; height: 932px;
+    background: #000;
+    font-family: 'Inter', system-ui, sans-serif;
+    color: var(--text-primary);
+    overflow: hidden;
+    user-select: none; -webkit-user-select: none;
+  }
+  button { font: inherit; color: inherit; border: 0; background: none; padding: 0; margin: 0; cursor: pointer; text-align: inherit; }
+
+  /* every control answers the touch, as iOS does */
+  button, .pressable { transition: opacity 90ms ease-out; }
+  button:active, .pressable:active, .is-pressed { opacity: .6; }
+
+  #screen { position: absolute; inset: 0; overflow: hidden; }
+  #screen.is-sell { --side: var(--action-sell); --side-fill: var(--fill-sell); }
+
+  /* ================= type ramp (Figma text styles) ================= */
+  .t-display { font-size: 38px; line-height: 46px; font-weight: 600; letter-spacing: -.5px; }
+  .t-title   { font-size: 24px; line-height: 29px; font-weight: 600; letter-spacing: -.5px; }
+  .t-button  { font-size: 19px; line-height: 24px; font-weight: 500; letter-spacing: -.47px; }
+  .t-body    { font-size: 17px; line-height: 22px; font-weight: 400; letter-spacing: -.41px; }
+  .t-body-em { font-size: 17px; line-height: 22px; font-weight: 500; letter-spacing: -.41px; }
+  .t-control { font-size: 16px; line-height: 21px; font-weight: 500; letter-spacing: -.32px; }
+  .t-caption { font-size: 14px; line-height: 19px; font-weight: 400; letter-spacing: -.15px; }
+  .t-micro   { font-size: 12px; line-height: 16px; font-weight: 500; }
+  .t-micro-r { font-size: 12px; line-height: 16px; font-weight: 400; }
+
+  /* ================= status bar ================= */
+  .statusbar {
+    position: absolute; top: 0; left: 0; right: 0; height: 62px; z-index: 6;
+    display: flex; align-items: center;
+    padding: 20px 24px;
+    pointer-events: none;
+  }
+  .statusbar .sb-time { flex: 1; text-align: center; padding-top: 1.5px; font-size: 17px; line-height: 22px; font-weight: 500; letter-spacing: -.41px; color: #fff; }
+  .statusbar .sb-levels { flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px; }
+  .statusbar img { display: block; }
+
+  /* ============================================================
+     ORDER — one screen, two postures (chart / expanded) + error
+     ============================================================ */
+  .order { position: absolute; inset: 0; }
+
+  .sheet-behind {
+    position: absolute; top: 55px; left: 26px; width: 378px; height: 30px;
+    border-radius: var(--r-surface);
+    background: var(--surface-control-pressed);
+  }
+
+  /* the sheet is the scroll container; its top edge breathes between postures */
+  .osheet {
+    position: absolute; top: 70px; left: 0; right: 0; bottom: 0;
+    border-radius: 20px 20px 0 0;
+    background: var(--surface-control);
+    overflow-y: auto; overflow-x: hidden;
+    scrollbar-width: none;
+    transition: top 460ms var(--spring), background-color 460ms ease;
+    z-index: 2;
+  }
+  .osheet::-webkit-scrollbar { display: none; }
+  .order.is-expanded .osheet { top: 66px; background: var(--surface-page); }
+
+  .grabber {
+    display: block;
+    width: 100%; padding: 5px 0 0;
+    touch-action: none;
+  }
+  .grabber i {
+    display: block; width: 36px; height: 5px; margin: 0 auto;
+    border-radius: 999px; background: var(--labels-tertiary);
+  }
+  .grabber:active { opacity: 1; }   /* the grabber is a handle, not a button */
+
+  /* ---- chart zone: folds shut when the sheet expands ---- */
+  .chart-zone {
+    max-height: 260px;
+    opacity: 1;
+    overflow: hidden;
+    transition: max-height 460ms var(--spring), opacity 300ms ease 100ms;
+  }
+  .order.is-expanded .chart-zone { max-height: 0; opacity: 0; transition: max-height 460ms var(--spring), opacity 200ms ease; }
+
+  .chips {
+    display: flex; gap: 8px;
+    margin: 11px 0 0; padding: 0 16px;
+    overflow-x: auto; scrollbar-width: none;
+  }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    flex: none;
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 16px;
+    border-radius: var(--r-card);
+    background: var(--surface-card);
+  }
+  .chip--active { background: var(--surface-inverse); color: var(--text-on-inverse); }
+  .chip .avatar { position: relative; width: 30px; height: 30px; margin: 2px 0; }
+  .chip .avatar img { position: absolute; width: 20px; height: 20px; }
+  .chip .avatar .base  { left: 0; top: 8px; }
+  .chip .avatar .quote { left: 9px; top: 0; width: 19px; height: 19px; }
+  .chip .letter {
+    width: 28px; height: 28px; margin: 2px 0;
+    border-radius: 12px; background: #ce9ee6;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff;
+  }
+
+  .price-row { padding: 8px 16px 0; }
+  .price-row .big { color: var(--data-ask); font-variant-numeric: tabular-nums; }
+
+  .chart-canvas { position: relative; height: 143px; margin-top: 6px; }
+  .chart-canvas img.line { position: absolute; left: -1.4px; width: 307.9px; height: 96.5px; }
+  .chart-canvas .ask-line { top: 3.8px; }
+  .chart-canvas .bid-line { top: 34.8px; }
+  .chart-canvas .dot {
+    position: absolute; width: 9px; height: 9px; border-radius: 50%;
+    left: 297.5px;
+  }
+  .chart-canvas .dot-ask { top: 32.5px; background: var(--data-ask); animation: dotPulse 2s ease-out infinite; }
+  .chart-canvas .dot-bid { top: 63.5px; background: var(--data-bid); animation: dotPulse 2s ease-out infinite 1s; }
+  @keyframes dotPulse {
+    0%   { box-shadow: 0 0 0 0 rgba(0, 0, 0, .18); }
+    70%  { box-shadow: 0 0 0 8px rgba(0, 0, 0, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(0, 0, 0, 0); }
+  }
+  .chart-canvas img.leader { position: absolute; left: 308px; width: 62px; height: 1.5px; }
+  .chart-canvas .leader-ask { top: 37px; }
+  .chart-canvas .leader-bid { top: 68px; }
+  .chart-canvas .pill {
+    position: absolute; left: 371px; width: 52px; height: 16px;
+    border-radius: var(--r-card);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 12px; line-height: 16px; font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+  .chart-canvas .pill-ask { top: 30px; background: var(--data-ask); }
+  .chart-canvas .pill-bid { top: 61px; background: var(--data-bid); }
+  .chart-canvas .edge { position: absolute; left: 370px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+  .chart-canvas .edge-top { top: 0; }
+  .chart-canvas .edge-bottom { top: 119px; }
+
+  /* ---- Market | Pending ---- */
+  .seg {
+    position: relative;
+    display: flex; align-items: center;
+    height: 56px; margin: 14px 16px 0; padding: 4px;
+    border-radius: 24px;
+    background: var(--surface-card);
+  }
+  .seg .seg-pill {
+    position: absolute; top: 4px; bottom: 4px; left: 4px;
+    width: calc(50% - 4px);
+    border-radius: var(--r-card);
+    background: var(--surface-inverse);
+    transition: transform 380ms var(--spring);
+  }
+  .seg.on-2 .seg-pill { transform: translateX(100%); }
+  .seg button {
+    position: relative; flex: 1; height: 48px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    color: var(--text-secondary);
+    transition: color 240ms ease, opacity 90ms ease-out;
+  }
+  .seg button.is-on { color: var(--text-on-inverse); }
+
+  /* ---- the white card ---- */
+  .main-card {
+    margin-top: 16px;
+    padding: 16px;
+    border-radius: 32px;
+    background: var(--surface-card);
+    display: flex; flex-direction: column; gap: 24px;
+  }
+  .order.is-expanded .main-card { margin-top: 12px; }
+
+  /* Sell | Buy */
+  .sellbuy { position: relative; height: 56px; border-radius: 24px; background: var(--surface-control); }
+  .sellbuy .sb-pill {
+    position: absolute; top: 4px; bottom: 4px; left: 4px;
+    width: calc(50% - 8px);
+    border-radius: var(--r-card);
+    background: var(--action-sell);
+    transform: translateX(calc(100% + 8px));
+    transition: transform 380ms var(--spring), background-color 380ms ease;
+  }
+  #screen:not(.is-sell) .sellbuy .sb-pill { background: var(--action-buy); }
+  #screen.is-sell .sellbuy .sb-pill { transform: translateX(0); }
+  .sellbuy button {
+    position: absolute; top: 0; bottom: 0; width: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-secondary);
+    transition: color 240ms ease, opacity 90ms ease-out;
+  }
+  .sellbuy .opt-sell { left: 0; }
+  .sellbuy .opt-buy { right: 0; }
+  #screen.is-sell .opt-sell, #screen:not(.is-sell) .opt-buy { color: var(--text-on-inverse); }
+
+  /* ---- volume block ---- */
+  .vol { border-radius: var(--r-card); background: var(--surface-control); }
+  .vol .readout-row {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    padding: 16px 24px 12px 16px;
+  }
+  .vol .readout { display: flex; flex-direction: column; gap: 2px; }
+  .vol .readout .margin { font-variant-numeric: tabular-nums; transition: color 240ms ease; }
+  .vol .readout .lots { font-variant-numeric: tabular-nums; transition: color 240ms ease; }
+  .vol.is-error .readout .margin, .vol.is-error .readout .lots { color: var(--state-error); }
+  .vol .steppers { display: flex; gap: 24px; width: 88px; justify-content: flex-end; }
+  .vol .steppers button { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; }
+
+  .slider-row { padding: 0 16px; }
+  .slider { position: relative; height: 36px; border-radius: var(--r-card); background: var(--surface-card); touch-action: none; }
+  .slider .fill {
+    position: absolute; inset: 0;
+    border-radius: var(--r-card);
+    background: var(--side-fill);
+    transition: background-color 380ms ease;
+    /* width driven from script; transition toggled on for taps, off for drags */
+  }
+  .slider.is-anim .fill { transition: width 320ms var(--spring), background-color 380ms ease; }
+  .slider .knob {
+    position: absolute; top: 50%; width: 32px; height: 32px;
+    transform: translate(-100%, -50%);   /* right edge lands on `left` — 2px inside the fill, as in Figma */
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, .15), 0 3px 1px rgba(0, 0, 0, .06);
+  }
+  .slider.is-anim .knob { transition: left 320ms var(--spring); }
+  .slider .ticks {
+    position: absolute; left: 16px; right: 16px; top: 50%; height: 4px;
+    transform: translateY(-50%);
+    display: flex; justify-content: space-between; align-items: center;
+    pointer-events: none;
+  }
+  .slider .ticks i { width: 4px; height: 4px; border-radius: 50%; background: rgba(0, 0, 0, .04); }
+
+  .presets { display: flex; gap: 8px; padding: 16px; }
+  .presets button {
+    flex: 1;
+    padding: 8px 16px;
+    border-radius: var(--r-card);
+    background: var(--surface-card);
+    display: flex; flex-direction: column; align-items: center; gap: 0;
+    white-space: nowrap;
+  }
+  .presets .sub { color: var(--text-secondary); }
+
+  /* the Deposit rescue slides open when the number outgrows the balance */
+  .fix-slot { max-height: 0; opacity: 0; overflow: hidden; padding: 0 16px; transition: max-height 420ms var(--spring), opacity 260ms ease, padding 420ms var(--spring); }
+  .vol.is-error .fix-slot { max-height: 96px; opacity: 1; padding: 0 16px 16px; }
+  .fix-slot .deposit {
+    width: 100%; height: 64px;
+    border-radius: var(--r-surface);
+    background: var(--surface-card);
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+
+  /* ---- auto close block ---- */
+  .ac { border-radius: var(--r-card); background: var(--surface-control); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .ac .surface { display: flex; border-radius: var(--r-surface); background: var(--surface-card); overflow: hidden; }
+  .ac .half { flex: 1; min-width: 0; display: flex; gap: 12px; align-items: center; padding: 12px; }
+  .ac .sep { width: 1px; background: var(--border-divider); }
+  .ac .badge {
+    flex: none; width: 40px; height: 40px; border-radius: var(--r-card);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ac .badge--loss { background: var(--surface-negative); color: var(--data-negative); }
+  .ac .badge--win  { background: var(--surface-positive); color: var(--data-positive); }
+  .ac .txt { display: flex; flex-direction: column; gap: 2px; white-space: nowrap; }
+  .ac .txt .pips { color: var(--text-secondary); }
+  .ac .txt .eur { font-variant-numeric: tabular-nums; }
+  .ac .txt .eur--loss { color: var(--data-negative); }
+  .ac .txt .eur--win  { color: var(--data-positive); }
+
+  /* the arrows swap direction when the side flips — a sell hurts upward */
+  .trend { display: block; }
+  .trend path { stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+  .trend .up, .trend .down { transition: opacity 240ms ease; }
+
+  /* ---- extra rows + share (live only in the expanded posture) ---- */
+  .rows-extra {
+    display: flex; flex-direction: column; gap: 8px;
+    max-height: 0; opacity: 0; overflow: hidden;
+    margin-top: -24px;   /* swallows the card gap while hidden */
+    transition: max-height 460ms var(--spring), opacity 240ms ease, margin-top 460ms var(--spring);
+  }
+  .order.is-expanded .rows-extra { max-height: 130px; opacity: 1; margin-top: 0; transition: max-height 460ms var(--spring), opacity 300ms ease 120ms, margin-top 460ms var(--spring); }
+  .rowv {
+    height: 56px; padding: 16px;
+    border-radius: var(--r-card); background: var(--surface-control);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .rowv .val { display: flex; align-items: center; gap: 4px; color: var(--text-secondary); }
+  .rowv .chev { display: block; }
+
+  .share {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    height: 64px; margin: 32px 16px 0;
+    border-radius: var(--r-surface); background: var(--surface-card);
+    max-height: 0; margin-top: 0; opacity: 0; overflow: hidden;
+    transition: max-height 460ms var(--spring), margin-top 460ms var(--spring), opacity 240ms ease;
+  }
+  .order.is-expanded .share { max-height: 64px; margin-top: 32px; opacity: 1; transition: max-height 460ms var(--spring), margin-top 460ms var(--spring), opacity 300ms ease 140ms; }
+
+  .osheet .tail { height: 150px; }
+
+  /* ---- bottom bar ---- */
+  .bottom-bar {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 4;
+    padding: 16px 0 20px;
+    display: flex; flex-direction: column; align-items: center; gap: 20px;
+  }
+  .bottom-bar::before {
+    content: "";
+    position: absolute; left: 0; right: 0; bottom: 0; height: 96px;
+    background: linear-gradient(178.5deg, rgba(255, 255, 255, 0) 6.8%, #fff 96.4%);
+    filter: blur(2px);
+    pointer-events: none;
+  }
+  .place {
+    position: relative;
+    width: 398px; padding: 20px 24px;
+    border-radius: var(--r-card);
+    background: var(--side);
+    color: var(--text-on-inverse);
+    text-align: center;
+    transition: background-color 380ms ease, color 380ms ease, opacity 90ms ease-out;
+  }
+  .place.is-disabled { background: var(--neutral-200); color: var(--text-secondary); pointer-events: none; }
+  .footer-margin {
+    position: relative;
+    display: flex; align-items: center; gap: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ============================================================
+     modal sheets — scrim fades, sheet rides up on the spring
+     ============================================================ */
+  .dimmer {
+    position: absolute; inset: 0; z-index: 10;
+    background: rgba(0, 0, 0, .4);
+    opacity: 0; pointer-events: none;
+    transition: opacity 320ms ease;
+  }
+  #screen.is-sheet-open .dimmer { opacity: 1; pointer-events: auto; }
+
+  .modal {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 11;
+    border-radius: var(--r-sheet) var(--r-sheet) 0 0;
+    background: var(--surface-page);
+    padding: 12px 16px 24px;
+    display: flex; flex-direction: column; gap: 32px;
+    transform: translateY(105%);
+    transition: transform 420ms var(--spring);
+    visibility: hidden;
+  }
+  .modal.is-open { transform: translateY(0); visibility: visible; }
+  .modal.is-leaving { visibility: visible; }
+
+  .m-head { display: flex; flex-direction: column; gap: 20px; }
+  .m-head .m-grab { width: 36px; height: 5px; margin: 0 auto; border-radius: 999px; background: var(--neutral-300); }
+  .m-head .m-bar { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; }
+  .m-head .m-bar .cancel { width: 84px; }
+  .m-head .m-bar .spacer { width: 84px; }
+
+  .m-done {
+    height: 64px;
+    border-radius: var(--r-surface);
+    background: var(--surface-inverse);
+    color: var(--text-on-inverse);
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* content of a modal settles in a beat after the sheet itself */
+  .modal .m-fade { transition: opacity 240ms ease 120ms; }
+  .modal:not(.is-open) .m-fade { opacity: 0; transition: opacity 120ms ease; }
+
+  /* ---- auto close sheet ---- */
+  .m-section { display: flex; flex-direction: column; gap: 16px; }
+  .m-sechead { display: flex; align-items: center; gap: 8px; }
+  .m-sechead .m-badge {
+    width: 32px; height: 32px; border-radius: var(--r-surface);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .field-amount {
+    height: 76px; padding: 16px;
+    border-radius: var(--r-surface);
+    background: var(--surface-card);
+    border: 1px solid var(--neutral-300);
+    display: flex; align-items: center; gap: 12px;
+    transition: border-color 200ms ease, box-shadow 200ms ease;
+  }
+  .field-amount.is-focus { border: 2px solid var(--text-primary); padding: 15px; }
+  .field-amount .fa-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .field-amount .fa-value { display: flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
+  .field-amount .caret { width: 2px; height: 21px; border-radius: 999px; background: var(--text-primary); animation: caretBlink 1.1s steps(1) infinite; }
+  @keyframes caretBlink { 50% { opacity: 0; } }
+  .field-amount .fa-sub { color: var(--text-secondary); }
+  .field-amount .clear {
+    flex: none; width: 20px; height: 20px; border-radius: 12px;
+    background: var(--neutral-300);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .row-toggle {
+    height: 56px; padding: 12px 16px;
+    border-radius: var(--r-surface); background: var(--surface-card);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .switch {
+    position: relative; width: 51px; height: 31px;
+    border-radius: var(--r-surface);
+    background: var(--neutral-200);
+    transition: background-color 260ms ease;
+  }
+  .switch .knob27 {
+    position: absolute; top: 2px; left: 2px; width: 27px; height: 27px;
+    transition: transform 300ms var(--spring);
+  }
+  .switch.is-on { background: var(--action-buy); }   /* green/500 in Figma, side-agnostic */
+  .switch.is-on .knob27 { transform: translateX(20px); }
+  .switch .knob27 img { position: absolute; left: -8px; top: -5px; width: 43px; height: 43px; }
+  .add-level {
+    height: 64px;
+    border-radius: var(--r-surface); background: var(--surface-card);
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    color: var(--action-buy);   /* the design keeps this green on both sides */
+    transition: opacity 90ms ease-out;
+  }
+  .add-level svg path { stroke: currentColor; }
+
+  /* ---- market range sheet ---- */
+  .m-note { color: var(--text-secondary); }
+  .m-body { display: flex; flex-direction: column; gap: 16px; }
+  .range-card { border-radius: var(--r-surface); background: var(--surface-card); padding: 16px; }
+  .range-card .readout-row { display: flex; align-items: flex-end; justify-content: space-between; padding: 16px 24px 12px 16px; }
+  .range-card .readout { display: flex; flex-direction: column; gap: 2px; }
+  .range-presets { display: flex; gap: 8px; }
+  .range-presets button {
+    flex: 1;
+    padding: 8px 12px;
+    border-radius: var(--r-card);
+    background: var(--surface-card);
+    border: 2px solid transparent;
+    display: flex; flex-direction: column; align-items: center;
+    white-space: nowrap;
+    transition: border-color 220ms ease, opacity 90ms ease-out;
+  }
+  .range-presets button.is-sel { border-color: var(--data-positive); }
+  .range-presets .sub { color: var(--text-secondary); }
+
+  /* ---- comment sheet ---- */
+  .comment-field {
+    height: 76px; padding: 24px 16px;
+    border-radius: var(--r-surface);
+    background: var(--surface-card);
+    border: 1px solid var(--neutral-300);
+    display: flex; align-items: center;
+  }
+  .comment-field input {
+    width: 100%; border: 0; outline: 0; background: none;
+    font: inherit; color: var(--text-primary);
+    font-size: 17px; letter-spacing: -.41px;
+  }
+  .comment-field input::placeholder { color: var(--text-secondary); }
+
+  /* the placed order answers with a press of the whole button */
+  @keyframes placePulse {
+    0%   { transform: scale(1); }
+    35%  { transform: scale(.96); }
+    100% { transform: scale(1); }
+  }
+  .place.is-placed { animation: placePulse 360ms var(--spring); }
+
+  /* ================= demo film cursor (as in the Plata deck) ================= */
+  body.is-demo #screen { pointer-events: none; }
+  .demo-cursor {
+    position: fixed; left: 0; top: 0; z-index: 99;
+    width: 34px; height: 34px; margin: -17px 0 0 -17px;
+    border-radius: 50%;
+    background: rgba(20, 24, 32, .28);
+    box-shadow: 0 0 0 1.5px rgba(255, 255, 255, .65) inset, 0 2px 10px rgba(0, 0, 0, .25);
+    pointer-events: none;
+    transition: transform 600ms cubic-bezier(0.4, 0, 0.2, 1), scale 160ms ease, opacity 300ms ease;
+  }
+  .demo-cursor.is-down { scale: .74; background: rgba(20, 24, 32, .42); }
+  .demo-cursor.is-away { opacity: 0; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition-duration: 1ms !important; animation-duration: 1ms !important; }
+  }
+</style>
+</head>
+<body>
+<div id="screen">
+
+  <!-- ============ ORDER ============ -->
+  <div class="order" id="order">
+    <div class="statusbar">
+      <div class="sb-time">9:41</div>
+      <div class="sb-levels">
+        <img src="../assets/figma/sb-cellular-light.svg" width="19.2" height="12.2" alt="">
+        <img src="../assets/figma/sb-wifi-light.svg" width="17.1" height="12.3" alt="">
+        <img src="../assets/figma/sb-battery-light.svg" width="27.3" height="13" alt="">
+      </div>
+    </div>
+    <div class="sheet-behind"></div>
+
+    <div class="osheet" id="osheet">
+      <button class="grabber" id="grabber" aria-label="Expand the order sheet"><i></i></button>
+
+      <!-- chart zone: chips · price · ask/bid film -->
+      <div class="chart-zone" id="chartZone">
+        <div class="chips">
+          <div class="chip chip--active">
+            <div class="avatar">
+              <img class="base" src="../assets/figma/avatar-base.png" alt="">
+              <img class="quote" src="../assets/figma/avatar-quote.png" alt="">
+            </div>
+            <span class="t-control">GBPJPY</span>
+          </div>
+          <div class="chip">
+            <span class="letter t-micro">G</span>
+            <span class="t-control">GERMANY 40</span>
+          </div>
+          <div class="chip">
+            <span class="letter t-micro">G</span>
+            <span class="t-control">US TECH 100</span>
+          </div>
+        </div>
+        <div class="price-row">
+          <div class="big t-display" id="bigPrice">214.342</div>
+        </div>
+        <div class="chart-canvas">
+          <img class="line ask-line" src="../assets/figma/chart-ask.svg" alt="">
+          <img class="line bid-line" src="../assets/figma/chart-bid.svg" alt="">
+          <span class="dot dot-ask"></span>
+          <span class="dot dot-bid"></span>
+          <img class="leader leader-ask" src="../assets/figma/leader-ask.svg" alt="">
+          <img class="leader leader-bid" src="../assets/figma/leader-bid.svg" alt="">
+          <span class="edge edge-top t-micro" id="edgeTop">214.348</span>
+          <span class="pill pill-ask" id="pillAsk">214.342</span>
+          <span class="pill pill-bid" id="pillBid">214.336</span>
+          <span class="edge edge-bottom t-micro" id="edgeBottom">214.327</span>
+        </div>
+      </div>
+
+      <!-- Market | Pending -->
+      <div class="seg" id="segList">
+        <div class="seg-pill"></div>
+        <button class="t-button is-on" id="segMarket">Market</button>
+        <button class="t-button" id="segPending">Pending</button>
+      </div>
+
+      <div class="main-card">
+        <!-- Sell | Buy -->
+        <div class="sellbuy">
+          <div class="sb-pill"></div>
+          <button class="opt-sell t-button" id="optSell">Sell</button>
+          <button class="opt-buy t-button" id="optBuy">Buy</button>
+        </div>
+
+        <!-- volume -->
+        <div class="vol" id="vol">
+          <div class="readout-row">
+            <div class="readout">
+              <div class="margin t-title" id="marginOut">€116.85 margin</div>
+              <div class="lots t-body" id="lotsOut">0.10 lots</div>
+            </div>
+            <div class="steppers">
+              <button id="stepMinus" aria-label="Less volume">
+                <svg width="18" height="2" viewBox="0 0 18 2"><path d="M1 1h16" stroke="#232326" stroke-width="2" stroke-linecap="round"/></svg>
+              </button>
+              <button id="stepPlus" aria-label="More volume">
+                <svg width="18" height="18" viewBox="0 0 18 18"><path d="M9 1v16M1 9h16" stroke="#232326" stroke-width="2" stroke-linecap="round"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="slider-row">
+            <div class="slider" id="slider">
+              <div class="ticks"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+              <div class="fill" id="sliderFill"></div>
+              <div class="knob" id="sliderKnob"></div>
+            </div>
+          </div>
+          <div class="presets">
+            <button data-pct="25"><span class="t-body-em">25%</span><span class="sub t-micro-r">0.21 lots</span></button>
+            <button data-pct="50"><span class="t-body-em">50%</span><span class="sub t-micro-r">0.43 lots</span></button>
+            <button data-pct="75"><span class="t-body-em">75%</span><span class="sub t-micro-r">0.64 lots</span></button>
+          </div>
+          <div class="fix-slot">
+            <button class="deposit" id="depositBtn">
+              <svg width="18" height="18" viewBox="0 0 18 18"><path d="M9 1v16M1 9h16" stroke="#232326" stroke-width="2" stroke-linecap="round"/></svg>
+              <span class="t-button">Deposit</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- auto close -->
+        <button class="ac pressable" id="acBlock">
+          <span class="t-body-em">Auto close</span>
+          <span class="surface">
+            <span class="half">
+              <span class="badge badge--loss">
+                <svg class="trend" width="22" height="14" viewBox="0 0 22.5 13.5" id="slArrow">
+                  <g class="down"><path d="M1.25 1.25L7.75 7.25L12.3 3.02L21.25 12.25"/><path d="M14.75 12.25H21.25V6.25"/></g>
+                  <g class="up" style="opacity:0"><path d="M1.25 12.25L7.75 6.25L12.3 10.48L21.25 1.25"/><path d="M14.75 1.25H21.25V7.25"/></g>
+                </svg>
+              </span>
+              <span class="txt">
+                <span class="t-body-em">Stop loss</span>
+                <span class="pips t-micro-r" id="slPips">−20 pips</span>
+                <span class="eur eur--loss t-body-em" id="slEur">−€10.89</span>
+              </span>
+            </span>
+            <span class="sep"></span>
+            <span class="half">
+              <span class="badge badge--win">
+                <svg class="trend" width="22" height="14" viewBox="0 0 22.5 13.5" id="tpArrow">
+                  <g class="up"><path d="M1.25 12.25L7.75 6.25L12.3 10.48L21.25 1.25"/><path d="M14.75 1.25H21.25V7.25"/></g>
+                  <g class="down" style="opacity:0"><path d="M1.25 1.25L7.75 7.25L12.3 3.02L21.25 12.25"/><path d="M14.75 12.25H21.25V6.25"/></g>
+                </svg>
+              </span>
+              <span class="txt">
+                <span class="t-body-em">Take profit</span>
+                <span class="pips t-micro-r" id="tpPips">+40 pips</span>
+                <span class="eur eur--win t-body-em" id="tpEur">+€21.78</span>
+              </span>
+            </span>
+          </span>
+        </button>
+
+        <!-- expanded-only rows -->
+        <div class="rows-extra">
+          <button class="rowv" id="rowRange">
+            <span class="t-body-em">Market range</span>
+            <span class="val">
+              <span class="t-body" id="rangeVal">Auto</span>
+              <svg class="chev" width="20" height="20" viewBox="0 0 20 20"><path d="M7.5 4.5L13 10l-5.5 5.5" stroke="#6a6a6f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+            </span>
+          </button>
+          <button class="rowv" id="rowComment">
+            <span class="t-body-em">Comment</span>
+            <span class="val">
+              <span class="t-body" id="commentVal">Add</span>
+              <svg class="chev" width="20" height="20" viewBox="0 0 20 20"><path d="M7.5 4.5L13 10l-5.5 5.5" stroke="#6a6a6f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <button class="share" id="shareBtn">
+        <svg width="20" height="20" viewBox="0 0 20 20"><path d="M10 12.5V2.5M6.5 5.5L10 2l3.5 3.5M4.5 9.5H4a2 2 0 0 0-2 2V16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4.5a2 2 0 0 0-2-2h-.5" stroke="#232326" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+        <span class="t-button">Share signal</span>
+      </button>
+
+      <div class="tail"></div>
+    </div>
+
+    <div class="bottom-bar">
+      <button class="place t-button" id="placeBtn">Place order</button>
+      <button class="footer-margin pressable" id="footerMargin">
+        <span class="t-control" id="footerText">€116.85 / 1000.00</span>
+        <svg width="16" height="16" viewBox="0 0 16 16"><path d="M6 3.5L10.5 8 6 12.5" stroke="#232326" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ MODAL SHEETS ============ -->
+  <div class="dimmer" id="dimmer"></div>
+
+  <!-- Auto close -->
+  <div class="modal" id="mAutoclose">
+    <div class="m-head">
+      <div class="m-grab"></div>
+      <div class="m-bar">
+        <button class="cancel t-body-em" data-cancel="mAutoclose">Cancel</button>
+        <span class="t-body-em">Auto close</span>
+        <span class="spacer"></span>
+      </div>
+    </div>
+    <div class="m-section m-fade">
+      <div class="m-sechead">
+        <span class="m-badge badge--loss" style="background: var(--surface-negative); color: var(--data-negative);">
+          <svg class="trend" width="18" height="11" viewBox="0 0 22.5 13.5" id="mSlArrow">
+            <g class="down"><path d="M1.25 1.25L7.75 7.25L12.3 3.02L21.25 12.25"/><path d="M14.75 12.25H21.25V6.25"/></g>
+            <g class="up" style="opacity:0"><path d="M1.25 12.25L7.75 6.25L12.3 10.48L21.25 1.25"/><path d="M14.75 1.25H21.25V7.25"/></g>
+          </svg>
+        </span>
+        <span class="t-title">Stop loss</span>
+      </div>
+      <div class="field-amount is-focus" id="slField">
+        <span class="fa-text">
+          <span class="fa-value">
+            <span class="t-body-em" id="mSlEur">−€10.89</span>
+            <span class="caret"></span>
+          </span>
+          <span class="fa-sub t-caption" id="mSlSub">20 pips below price</span>
+        </span>
+        <button class="clear" data-clear="sl" aria-label="Clear stop loss">
+          <svg width="10" height="10" viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div class="row-toggle">
+          <span class="t-body">Trailing</span>
+          <button class="switch" id="swTrailing" aria-label="Trailing">
+            <span class="knob27"><img src="../assets/figma/switch-knob.svg" alt=""></span>
+          </button>
+        </div>
+        <div class="row-toggle">
+          <span class="t-body">Break-even at +15 pips</span>
+          <button class="switch is-on" id="swBreakeven" aria-label="Break-even">
+            <span class="knob27"><img src="../assets/figma/switch-knob.svg" alt=""></span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="m-section m-fade">
+      <div class="m-sechead">
+        <span class="m-badge" style="background: var(--surface-positive); color: var(--data-positive);">
+          <svg class="trend" width="18" height="11" viewBox="0 0 22.5 13.5" id="mTpArrow">
+            <g class="up"><path d="M1.25 12.25L7.75 6.25L12.3 10.48L21.25 1.25"/><path d="M14.75 1.25H21.25V7.25"/></g>
+            <g class="down" style="opacity:0"><path d="M1.25 1.25L7.75 7.25L12.3 3.02L21.25 12.25"/><path d="M14.75 12.25H21.25V6.25"/></g>
+          </svg>
+        </span>
+        <span class="t-title">Take profit</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div class="field-amount" id="tpField">
+          <span class="fa-text">
+            <span class="fa-value"><span class="t-body-em" id="mTpEur">+€21.78</span></span>
+            <span class="fa-sub t-caption" id="mTpSub">40 pips above price</span>
+          </span>
+          <button class="clear" data-clear="tp" aria-label="Clear take profit">
+            <svg width="10" height="10" viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+        <button class="add-level" id="addLevel">
+          <svg width="18" height="18" viewBox="0 0 18 18"><path d="M9 1v16M1 9h16" stroke-width="2" stroke-linecap="round"/></svg>
+          <span class="t-body-em">Add level</span>
+        </button>
+      </div>
+    </div>
+    <button class="m-done t-button" id="acDone">Done</button>
+  </div>
+
+  <!-- Market range -->
+  <div class="modal" id="mRange">
+    <div class="m-head">
+      <div class="m-grab"></div>
+      <div class="m-bar">
+        <button class="cancel t-body-em" data-cancel="mRange">Cancel</button>
+        <span class="t-body-em">Market range</span>
+        <span class="spacer"></span>
+      </div>
+    </div>
+    <div class="m-body m-fade">
+      <p class="m-note t-caption" style="margin: 0;">How far price may move before your order fills. Too tight and it is rejected, too wide and it fills worse.</p>
+      <div class="range-card">
+        <div class="readout-row" style="padding: 0 8px 0 0;">
+          <div class="readout">
+            <span class="t-title" id="rangeBig">Auto</span>
+            <span class="t-body" id="rangeSmall">5.0 pips</span>
+          </div>
+          <div class="steppers" style="display: flex; gap: 24px; align-items: center;">
+            <button id="rangeMinus" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;" aria-label="Tighter">
+              <svg width="18" height="2" viewBox="0 0 18 2"><path d="M1 1h16" stroke="#232326" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+            <button id="rangePlus" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;" aria-label="Wider">
+              <svg width="18" height="18" viewBox="0 0 18 18"><path d="M9 1v16M1 9h16" stroke="#232326" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="range-presets" id="rangePresets">
+        <button class="is-sel" data-auto="1"><span class="t-body-em">Auto</span><span class="sub t-micro-r">5.0 pips</span></button>
+        <button data-pips="1"><span class="t-body-em" data-eur>€0.54</span><span class="sub t-micro-r">1.0 pips</span></button>
+        <button data-pips="5"><span class="t-body-em" data-eur>€2.72</span><span class="sub t-micro-r">5.0 pips</span></button>
+        <button data-pips="10"><span class="t-body-em" data-eur>€5.45</span><span class="sub t-micro-r">10.0 pips</span></button>
+      </div>
+    </div>
+    <button class="m-done t-button" id="rangeDone">Done</button>
+  </div>
+
+  <!-- Comment -->
+  <div class="modal" id="mComment">
+    <div class="m-head">
+      <div class="m-grab"></div>
+      <div class="m-bar">
+        <button class="cancel t-body-em" data-cancel="mComment">Cancel</button>
+        <span class="t-body-em">Comment</span>
+        <span class="spacer"></span>
+      </div>
+    </div>
+    <div class="m-body m-fade">
+      <p class="m-note t-caption" style="margin: 0;">A note to yourself. Shows up with the position in your history.</p>
+      <div class="comment-field">
+        <input id="commentInput" type="text" placeholder="Add a note" autocomplete="off">
+      </div>
+    </div>
+    <button class="m-done t-button" id="commentDone">Done</button>
+  </div>
+
+</div>
+
+<script>
+  /* ===================== the money model =====================
+     One instrument, GBPJPY. Everything on screen derives from `lots`:
+       margin   = lots × 1168.52          (€116.85 at 0.10)
+       €/pip    = lots × 5.445            (SL −20 pips → −€10.89 at 0.10)
+       notional = lots × 116 852          (€11 690 at 0.10)
+     The balance is €999.87 — past 0.85 lots the order can't be funded,
+     which is exactly the state the "Not enough funds" frame draws. */
+  const BALANCE = 999.87;
+  const MARGIN_PER_LOT = 1168.52;
+  const EUR_PER_PIP_LOT = 5.445;
+  const LOT_MIN = 0.01, LOT_MAX = 1.20;
+
+  const state = {
+    side: 'buy',
+    lots: 0.10,
+    slPips: 20,  slOn: true,
+    tpPips: 40,  tpOn: true,
+    trailing: false, breakeven: true,
+    rangeAuto: true, rangePips: 5,
+    comment: '',
+  };
+
+  const $ = id => document.getElementById(id);
+  const screenEl = $('screen');
+  const fmt2 = n => n.toFixed(2);
+  const fmtEur = n => '€' + n.toFixed(2);
+  const fmtThin = n => String(Math.round(n / 10) * 10).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+
+  /* ===================== volume ===================== */
+  const slider = $('slider'), sliderFill = $('sliderFill'), sliderKnob = $('sliderKnob');
+  const CURVE = 1.9;
+  const lotsToT = l => Math.pow((l - LOT_MIN) / (LOT_MAX - LOT_MIN), 1 / CURVE);
+  const tToLots = t => LOT_MIN + (LOT_MAX - LOT_MIN) * Math.pow(t, CURVE);
+
+  function renderVolume() {
+    const margin = state.lots * MARGIN_PER_LOT;
+    const over = margin > BALANCE;
+    $('marginOut').textContent = fmtEur(margin) + ' margin';
+    $('lotsOut').textContent = over
+      ? 'Your balance covers ' + (Math.floor(BALANCE / MARGIN_PER_LOT * 100) / 100).toFixed(2).replace(/0$/, '5' === '5' ? '5' : '0') // 0.85
+      : fmt2(state.lots) + ' lots';
+    if (over) $('lotsOut').textContent = 'Your balance covers 0.85 lots';
+    $('vol').classList.toggle('is-error', over);
+
+    // slider geometry: fill ends at the knob; knob rides the fill's right edge
+    const t = Math.max(0, Math.min(1, lotsToT(state.lots)));
+    const track = 398 - 32;   // card width minus paddings — knob travel
+    const fillW = Math.max(36, t * 366 + 36 - 4);
+    sliderFill.style.width = Math.min(366, fillW) + 'px';
+    sliderKnob.style.left = Math.min(364, Math.max(34, fillW - 2)) + 'px';
+
+    // auto close derives from volume
+    renderAutoClose();
+
+    // the bottom bar tells the truth about affordability
+    const place = $('placeBtn');
+    if (over) {
+      place.classList.add('is-disabled');
+      place.textContent = 'Not enough funds · €' + Math.round(margin - BALANCE) + ' short';
+    } else {
+      place.classList.remove('is-disabled');
+      place.textContent = 'Place order';
+    }
+    $('footerText').textContent = fmtEur(margin) + ' / 1000.00';
+  }
+
+  function setLots(l, animate) {
+    state.lots = Math.round(Math.max(LOT_MIN, Math.min(LOT_MAX, l)) * 100) / 100;
+    if (animate) {
+      slider.classList.add('is-anim');
+      clearTimeout(setLots._t);
+      setLots._t = setTimeout(() => slider.classList.remove('is-anim'), 340);
+    }
+    renderVolume();
+  }
+
+  // drag the knob (or tap the track)
+  let dragging = false;
+  slider.addEventListener('pointerdown', e => {
+    dragging = true;
+    slider.setPointerCapture(e.pointerId);
+    slider.classList.remove('is-anim');
+    dragTo(e);
+  });
+  slider.addEventListener('pointermove', e => { if (dragging) dragTo(e); });
+  slider.addEventListener('pointerup', () => { dragging = false; track('flow_volume', { via: 'slider', lots: state.lots }); });
+  function dragTo(e) {
+    const r = slider.getBoundingClientRect();
+    const t = Math.max(0, Math.min(1, (e.clientX - r.left - 18) / (r.width - 36)));
+    setLots(tToLots(t), false);
+  }
+
+  // steppers: ±0.01, accelerating under a held finger
+  function stepper(btn, dir) {
+    let timer = null, pace = 160, run = () => {
+      setLots(state.lots + dir * 0.01, false);
+      pace = Math.max(40, pace - 12);
+      timer = setTimeout(run, pace);
+    };
+    btn.addEventListener('pointerdown', e => { btn.setPointerCapture(e.pointerId); pace = 160; run(); });
+    ['pointerup', 'pointercancel'].forEach(ev => btn.addEventListener(ev, () => {
+      clearTimeout(timer); timer = null;
+      track('flow_volume', { via: 'stepper', lots: state.lots });
+    }));
+  }
+  stepper($('stepMinus'), -1);
+  stepper($('stepPlus'), +1);
+
+  document.querySelectorAll('.presets button').forEach(b => {
+    b.addEventListener('click', () => {
+      const pct = +b.dataset.pct;
+      setLots(Math.round(BALANCE * pct / 100 / MARGIN_PER_LOT * 100) / 100, true);
+      track('flow_volume', { via: 'preset', pct: pct, lots: state.lots });
+    });
+  });
+
+  $('depositBtn').addEventListener('click', () => track('flow_deposit'));
+
+  /* ===================== side ===================== */
+  function setSide(side) {
+    if (state.side === side) return;
+    state.side = side;
+    screenEl.classList.toggle('is-sell', side === 'sell');
+    // arrows: a buy bleeds downward, a sell bleeds upward
+    const sell = side === 'sell';
+    [['slArrow', sell], ['mSlArrow', sell], ['tpArrow', !sell], ['mTpArrow', !sell]].forEach(([id, up]) => {
+      const svg = $(id);
+      svg.querySelector('.up').style.opacity = up ? 1 : 0;
+      svg.querySelector('.down').style.opacity = up ? 0 : 1;
+    });
+    track('flow_side', { side: side });
+  }
+  $('optSell').addEventListener('click', () => setSide('sell'));
+  $('optBuy').addEventListener('click', () => setSide('buy'));
+
+  /* ===================== market | pending ===================== */
+  $('segMarket').addEventListener('click', () => segTo(0));
+  $('segPending').addEventListener('click', () => segTo(1));
+  function segTo(i) {
+    $('segList').classList.toggle('on-2', i === 1);
+    $('segMarket').classList.toggle('is-on', i === 0);
+    $('segPending').classList.toggle('is-on', i === 1);
+    if (i === 1) track('flow_pending_peek');
+  }
+
+  /* ===================== auto close ===================== */
+  function renderAutoClose() {
+    const sl = state.lots * state.slPips * EUR_PER_PIP_LOT;
+    const tp = state.lots * state.tpPips * EUR_PER_PIP_LOT;
+    $('slPips').textContent = state.slOn ? '−' + state.slPips + ' pips' : 'Not set';
+    $('slEur').textContent = state.slOn ? '−' + fmtEur(sl) : '';
+    $('tpPips').textContent = state.tpOn ? '+' + state.tpPips + ' pips' : 'Not set';
+    $('tpEur').textContent = state.tpOn ? '+' + fmtEur(tp) : '';
+    // sheet mirrors the block
+    $('mSlEur').textContent = state.slOn ? '−' + fmtEur(sl) : 'Not set';
+    $('mSlSub').textContent = state.slOn ? state.slPips + ' pips below price' : 'Tap to set';
+    $('mTpEur').textContent = state.tpOn ? '+' + fmtEur(tp) : 'Not set';
+    $('mTpSub').textContent = state.tpOn ? state.tpPips + ' pips above price' : 'Tap to set';
+  }
+
+  document.querySelectorAll('[data-clear]').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    if (b.dataset.clear === 'sl') state.slOn = false; else state.tpOn = false;
+    renderAutoClose();
+  }));
+  $('slField').addEventListener('click', () => { state.slOn = true; renderAutoClose(); });
+  $('tpField').addEventListener('click', () => { state.tpOn = true; renderAutoClose(); });
+  $('swTrailing').addEventListener('click', () => { state.trailing = !state.trailing; $('swTrailing').classList.toggle('is-on', state.trailing); });
+  $('swBreakeven').addEventListener('click', () => { state.breakeven = !state.breakeven; $('swBreakeven').classList.toggle('is-on', state.breakeven); });
+  $('addLevel').addEventListener('click', () => track('flow_addlevel'));
+
+  /* ===================== modal sheets ===================== */
+  let openSheet = null;
+  const snapshot = {};
+  function sheetOpen(id) {
+    openSheet = id;
+    Object.assign(snapshot, JSON.parse(JSON.stringify(state)));
+    screenEl.classList.add('is-sheet-open');
+    $(id).classList.add('is-open');
+    track('flow_sheet_open', { sheet: id.slice(1).toLowerCase() });
+  }
+  function sheetClose(revert) {
+    if (!openSheet) return;
+    const el = $(openSheet);
+    if (revert) { Object.assign(state, snapshot); syncControls(); }
+    el.classList.add('is-leaving');
+    el.classList.remove('is-open');
+    setTimeout(() => el.classList.remove('is-leaving'), 460);
+    screenEl.classList.remove('is-sheet-open');
+    openSheet = null;
+    renderVolume(); renderRangeRow(); renderCommentRow();
+  }
+  function syncControls() {
+    $('swTrailing').classList.toggle('is-on', state.trailing);
+    $('swBreakeven').classList.toggle('is-on', state.breakeven);
+    renderAutoClose(); renderRange();
+    $('commentInput').value = state.comment;
+  }
+  document.querySelectorAll('[data-cancel]').forEach(b => b.addEventListener('click', () => sheetClose(true)));
+  $('dimmer').addEventListener('click', () => sheetClose(true));
+
+  $('acBlock').addEventListener('click', () => sheetOpen('mAutoclose'));
+  $('acDone').addEventListener('click', () => { track('flow_autoclose_done', { sl: state.slOn, tp: state.tpOn, trailing: state.trailing }); sheetClose(false); });
+
+  /* ---- market range ---- */
+  const RANGE_STEPS = [1, 2.5, 5, 7.5, 10];
+  function renderRange() {
+    const eur = state.lots * EUR_PER_PIP_LOT * state.rangePips;
+    $('rangeBig').textContent = state.rangeAuto ? 'Auto' : fmtEur(eur);
+    $('rangeSmall').textContent = state.rangePips.toFixed(1) + ' pips';
+    document.querySelectorAll('#rangePresets button').forEach(b => {
+      const sel = b.dataset.auto ? state.rangeAuto : (!state.rangeAuto && +b.dataset.pips === state.rangePips);
+      b.classList.toggle('is-sel', sel);
+      const eurEl = b.querySelector('[data-eur]');
+      if (eurEl) eurEl.textContent = fmtEur(state.lots * EUR_PER_PIP_LOT * (+b.dataset.pips));
+    });
+  }
+  function renderRangeRow() {
+    $('rangeVal').textContent = state.rangeAuto ? 'Auto' : state.rangePips.toFixed(1) + ' pips';
+  }
+  $('rowRange').addEventListener('click', () => { renderRange(); sheetOpen('mRange'); });
+  document.querySelectorAll('#rangePresets button').forEach(b => b.addEventListener('click', () => {
+    if (b.dataset.auto) { state.rangeAuto = true; state.rangePips = 5; }
+    else { state.rangeAuto = false; state.rangePips = +b.dataset.pips; }
+    renderRange();
+  }));
+  $('rangeMinus').addEventListener('click', () => rangeStep(-1));
+  $('rangePlus').addEventListener('click', () => rangeStep(+1));
+  function rangeStep(dir) {
+    let i = RANGE_STEPS.findIndex(v => v >= state.rangePips);
+    if (i < 0) i = RANGE_STEPS.length - 1;
+    i = Math.max(0, Math.min(RANGE_STEPS.length - 1, i + dir));
+    state.rangeAuto = false;
+    state.rangePips = RANGE_STEPS[i];
+    renderRange();
+  }
+  $('rangeDone').addEventListener('click', () => { track('flow_range_done', { auto: state.rangeAuto, pips: state.rangePips }); sheetClose(false); });
+
+  /* ---- comment ---- */
+  function renderCommentRow() {
+    const v = state.comment.trim();
+    $('commentVal').textContent = v ? (v.length > 14 ? v.slice(0, 13) + '…' : v) : 'Add';
+  }
+  $('rowComment').addEventListener('click', () => { $('commentInput').value = state.comment; sheetOpen('mComment'); setTimeout(() => $('commentInput').focus(), 460); });
+  $('commentInput').addEventListener('input', e => { state.comment = e.target.value; });
+  $('commentDone').addEventListener('click', () => { track('flow_comment_done', { has_note: !!state.comment.trim() }); sheetClose(false); });
+
+  /* ===================== the sheet's two postures ===================== */
+  const order = $('order');
+  function setExpanded(on) {
+    if (order.classList.contains('is-expanded') === on) return;
+    order.classList.toggle('is-expanded', on);
+    $('osheet').scrollTop = 0;
+    track('flow_posture', { posture: on ? 'expanded' : 'chart' });
+  }
+  $('grabber').addEventListener('click', () => setExpanded(!order.classList.contains('is-expanded')));
+  // a drag on the grabber follows the finger's verdict
+  let gy = null;
+  $('grabber').addEventListener('pointerdown', e => { gy = e.clientY; });
+  $('grabber').addEventListener('pointerup', e => {
+    if (gy === null) return;
+    const dy = e.clientY - gy; gy = null;
+    if (dy < -24) setExpanded(true);
+    else if (dy > 24) setExpanded(false);
+  });
+
+  /* ===================== share ===================== */
+  $('shareBtn').addEventListener('click', () => track('flow_share'));
+  $('footerMargin').addEventListener('click', () => track('flow_margin_detail'));
+
+  /* ===================== place order =====================
+     Where the order lands (Positions) is the next screen to build —
+     for now the button answers the tap and the numbers stay honest. */
+  $('placeBtn').addEventListener('click', () => {
+    track('flow_place', { side: state.side, lots: state.lots, sl: state.slOn, tp: state.tpOn });
+    const b = $('placeBtn');
+    b.classList.remove('is-placed');
+    void b.offsetWidth;               // restart the pulse on every tap
+    b.classList.add('is-placed');
+  });
+
+  /* ===================== the chart breathes ===================== */
+  let ask = 214.342;
+  const fmtP = n => n.toFixed(3);
+  function tickPrice() {
+    ask = Math.min(214.39, Math.max(214.30, ask + (Math.random() - .48) * .008));
+    const bid = ask - 0.006;
+    $('bigPrice').textContent = fmtP(ask);
+    $('pillAsk').textContent = fmtP(ask);
+    $('pillBid').textContent = fmtP(bid);
+    $('edgeTop').textContent = fmtP(ask + 0.006);
+    $('edgeBottom').textContent = fmtP(bid - 0.009);
+    setTimeout(tickPrice, 1400 + Math.random() * 1400);
+  }
+  setTimeout(tickPrice, 1800);
+
+  /* ===================== funnel: the first real touch ===================== */
+  let touched = false;
+  document.addEventListener('pointerdown', () => {
+    if (touched) return;
+    touched = true;
+    track('proto_touch');
+  }, true);
+
+  /* ===================== boot ===================== */
+  renderVolume(); renderAutoClose(); renderRange(); renderRangeRow(); renderCommentRow();
+
+  /* ===== ?demo=1 — the flow plays itself (the deck's silent film) =====
+     Same rig as the Plata build: a cursor walks the order end to end, then
+     starts over. ga.js is already mute for demo=1. */
+  if (new URLSearchParams(location.search).get('demo') === '1') {
+    document.body.classList.add('is-demo');
+    document.querySelectorAll('button, input, [tabindex]').forEach(el => { el.tabIndex = -1; });
+
+    const cursor = document.createElement('div');
+    cursor.className = 'demo-cursor';
+    document.body.appendChild(cursor);
+
+    const FILM = [
+      { sel: '#optSell',                                   wait: 1100 },
+      { sel: '.presets button[data-pct="50"]',             wait: 1000 },
+      { sel: '#optBuy',                                    wait: 900 },
+      { sel: '#acBlock',                                   wait: 1100 },
+      { sel: '#swTrailing',                                wait: 900 },
+      { sel: '#acDone',                                    wait: 1000 },
+      { sel: '#grabber',                                   wait: 1100 },
+      { sel: '#rowRange',                                  wait: 1100 },
+      { sel: '#rangePresets button[data-pips="5"]',        wait: 900 },
+      { sel: '#rangeDone',                                 wait: 1000 },
+      { sel: '#placeBtn',                                  wait: 2000 },
+    ];
+
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    function awake() {
+      if (!document.hidden) return Promise.resolve();
+      return new Promise(r => {
+        document.addEventListener('visibilitychange', function once() {
+          if (document.hidden) return;
+          document.removeEventListener('visibilitychange', once);
+          r();
+        });
+      });
+    }
+    function reach(el) {
+      const r = el.getBoundingClientRect();
+      cursor.style.transform = 'translate3d(' + (r.left + r.width / 2) + 'px,' + (r.top + r.height / 2) + 'px,0)';
+      return sleep(600);
+    }
+    async function tap(sel) {
+      const el = document.querySelector(sel);
+      if (!el) return;
+      await reach(el);
+      cursor.classList.add('is-down');
+      el.classList.add('is-pressed');
+      await sleep(150);
+      cursor.classList.remove('is-down');
+      el.classList.remove('is-pressed');
+      el.click();
+    }
+    async function rewind() {
+      cursor.classList.add('is-away');
+      // put the prototype back the way a fresh visitor finds it
+      setSide('buy'); setLots(0.10, false);
+      state.trailing = false; state.breakeven = true;
+      state.rangeAuto = true; state.rangePips = 5; state.comment = '';
+      state.slOn = true; state.tpOn = true;
+      syncControls(); renderRangeRow(); renderCommentRow(); renderVolume();
+      setExpanded(false);
+      await sleep(900);
+      cursor.classList.remove('is-away');
+    }
+    (async function play() {
+      const once = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      await sleep(1200);
+      do {
+        for (const beat of FILM) {
+          await awake();
+          await tap(beat.sel);
+          await sleep(beat.wait);
+        }
+        if (once) break;
+        await sleep(900);
+        await rewind();
+      } while (true);
+    })();
+  }
+</script>
+</body>
+</html>

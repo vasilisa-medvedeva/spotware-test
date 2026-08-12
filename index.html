@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Spotware design challenge · Vasilisa Medvedeva</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Onest:wght@300;400;500;600;700;800&family=Unbounded:wght@600;700&display=swap" rel="stylesheet">
+  <script src="assets/ga.js"></script>
+  <style>
+    :root {
+      /* deck tones: gray backers with a soft gradient, as in the Plata deck */
+      --grad-backer: linear-gradient(180deg, #F2F3F7 0%, #E3E6EB 100%);
+      --ink-proto:  #2F3642;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; min-height: 100svh; }
+    html { scroll-behavior: smooth; }
+    body { background: #fff; font-family: system-ui, -apple-system, sans-serif; overflow-x: hidden; }
+
+    /* ---- layout: blocks column ---- */
+    .stage {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 120px;
+      align-items: center;
+      padding: 40px 3vw 120px;
+    }
+
+    /* ---- backer shared by the film and the prototype: label beside phone ---- */
+    .proto, .film {
+      width: min(1120px, 94vw);
+      padding: clamp(40px, 4.6vw, 76px) clamp(20px, 3vw, 48px);
+      border-radius: 24px;
+      background:
+        radial-gradient(120% 80% at 50% 0%, rgba(255, 255, 255, .5), rgba(255, 255, 255, 0) 62%),
+        var(--grad-backer);
+      overflow: hidden;
+      color: var(--ink-proto);
+      font-family: 'Onest', system-ui, sans-serif;
+    }
+    .proto, .film__row {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: center;
+      gap: clamp(32px, 7vw, 110px);
+    }
+    /* the film stacks its row over the hand-off arrow */
+    .film {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: clamp(34px, 4.4vw, 60px);
+    }
+    .film__row { width: 100%; }
+
+    /* the film phone is a picture, not a control: this shield swallows taps so
+       the frame never takes them and a touch-drag still scrolls the page */
+    .film .phone__shield { position: absolute; inset: 0; z-index: 10; }
+
+    /* one word, as loud as the deck gets */
+    .proto-label .film-title {
+      max-width: none;
+      font-size: clamp(52px, 7.6vw, 108px);
+      line-height: .94;
+      text-transform: uppercase;
+    }
+    /* The blurb sets to the width of the word above it. The header shrinks to
+       fit-content, and the paragraph is kept out of that measurement — width:0
+       contributes nothing intrinsically, min-width fills whatever DEMO set. */
+    .film-label { width: fit-content; }
+    .film-label p {
+      width: 0;
+      min-width: 100%;
+      max-width: none;
+    }
+    .proto-label { margin: 0; text-align: left; }
+    .proto-label h2 {
+      margin: 0;
+      max-width: 8em;
+      font-family: 'Unbounded', 'Onest', sans-serif;
+      font-size: clamp(24px, 3.2vw, 40px);
+      font-weight: 700;
+      line-height: 1.06;
+      letter-spacing: -.03em;
+    }
+    .proto-label p {
+      margin: 14px 0 0;
+      max-width: 22em;
+      font-size: clamp(14px, 1.3vw, 16px);
+      font-weight: 300;
+      line-height: 1.45;
+      opacity: .78;
+    }
+
+    /* ---- hand-off to the real thing: arrow and label read as one control ---- */
+    .film-next {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: clamp(14px, 1.6vw, 20px);
+      text-decoration: none;
+      color: var(--ink-proto);
+      transition: opacity .12s ease-out;
+    }
+    .film-next:hover  { opacity: .8; }
+    .film-next:active { opacity: .6; }
+    .film-next__btn {
+      flex: none;
+      width: clamp(48px, 4.6vw, 64px);
+      height: clamp(48px, 4.6vw, 64px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: #fff;
+      font-size: clamp(19px, 1.9vw, 26px);
+      line-height: 1;
+      animation: scroll-nudge 1.8s ease-in-out infinite;
+    }
+    .film-next__text {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      text-align: left;
+    }
+    .film-next__eyebrow {
+      font-size: clamp(10px, .95vw, 12px);
+      font-weight: 600;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      opacity: .5;
+    }
+    .film-next__line {
+      font-size: clamp(14px, 1.35vw, 17px);
+      font-weight: 400;
+      line-height: 1.35;
+    }
+    @keyframes scroll-nudge {
+      0%, 100% { transform: translateY(0); }
+      50%      { transform: translateY(3px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .film-next__btn { animation: none; }
+    }
+
+    /* ---- iPhone mockup with the Dynamic Island ----
+       The screen holds a 430×932 design (cTrader draws on a Pro Max canvas)
+       scaled to 0.729 ≈ 314×680, so the whole phone fits a 900px-tall
+       viewport — same footprint as the Plata deck's phone. */
+    .phone { position: relative; width: 332px; max-width: 92vw; }
+    .frame {
+      padding: 9px;
+      border-radius: 57px;
+      background: #0c0c10;
+      box-shadow:
+        inset 0 0 0 1.6px rgba(255, 255, 255, .12),
+        0 30px 70px rgba(24, 30, 40, .45);
+    }
+    .screen {
+      position: relative;
+      width: 313.5px;
+      height: 681.7px;
+      border-radius: 48px;
+      overflow: hidden;
+      background: #000;
+    }
+    .screen iframe {
+      width: 430px;
+      height: 932px;
+      border: 0;
+      display: block;
+      transform: scale(0.729);
+      transform-origin: 0 0;
+    }
+    .island {
+      position: absolute;
+      top: 10px;               /* centers on the status-bar text line */
+      left: 50%;
+      transform: translateX(-50%);
+      width: 82px;             /* clears the Figma status icons (they are not ear-aware) */
+      height: 28px;
+      background: #000;
+      border-radius: 14px;
+      z-index: 5;
+      pointer-events: none;
+    }
+    .island::after {
+      content: "";
+      position: absolute;
+      right: 7px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #1c2333, #06070d 62%);
+    }
+
+    /* ---- fullscreen prototype (mobile): a tap on the phone expands it ---- */
+    .phone-tap { display: none; }
+    .fullproto {
+      position: fixed; inset: 0; z-index: 50;
+      background: #0c0c10;
+      display: none;
+      align-items: center; justify-content: center;
+    }
+    .fullproto.is-open { display: flex; }
+    .fullproto iframe {
+      width: 430px; height: 932px;
+      border: 0; flex-shrink: 0;
+      transform-origin: center;   /* JS fits 430×932 to the viewport */
+    }
+    .fullproto__close {
+      position: absolute;
+      top: calc(14px + env(safe-area-inset-top)); right: 14px;
+      z-index: 2;
+      width: 40px; height: 40px;
+      border: 0; border-radius: 50%;
+      background: rgba(255, 255, 255, .16);
+      color: #fff;
+      font-size: 18px; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+    }
+
+    /* ---- mobile ---- */
+    @media (max-width: 720px) {
+      .stage { gap: 72px; padding-bottom: 88px; }
+      .proto, .film__row { flex-direction: column; gap: 28px; }
+      .proto-label { text-align: center; }
+      .proto-label h2 { max-width: none; }
+      /* the inline phone is a poster here — the first tap goes fullscreen */
+      .phone-tap {
+        display: block;
+        position: absolute; inset: 0; z-index: 10;
+        border: 0; background: transparent;
+        cursor: pointer;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="stage">
+
+    <!-- one prototype, opening on the start of the flow.
+         The Demo film block (the flow playing itself, as in the Plata deck)
+         comes back once the prototype is signed off. -->
+    <section class="proto" id="prototype">
+      <header class="proto-label">
+        <h2>Try the flow yourself</h2>
+      </header>
+      <div class="phone">
+        <div class="frame">
+          <div class="screen">
+            <iframe src="screens/order.html" title="cTrader · New Order prototype"></iframe>
+            <div class="island"></div>
+          </div>
+        </div>
+        <button class="phone-tap" id="phoneTap" aria-label="Open the prototype fullscreen"></button>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- mobile: the prototype takes the whole screen -->
+  <div class="fullproto" id="fullproto">
+    <button class="fullproto__close" id="fullprotoClose" aria-label="Close">✕</button>
+    <iframe id="fullprotoFrame" title="cTrader · New Order prototype"></iframe>
+  </div>
+
+  <script>
+    /* which surface the deck was read on */
+    track('deck_view', {
+      layout: matchMedia('(max-width: 720px)').matches ? 'mobile' : 'desktop',
+    });
+
+    /* ===== the funnel: deck_view → proto_reached → proto_touch =====
+       proto_touch is reported from inside the frame. film_watched and
+       handoff_click return with the Demo block. */
+    const protoWatch = new IntersectionObserver(entries => {
+      if (!entries[0].isIntersecting) return;
+      protoWatch.disconnect();
+      track('proto_reached', { via: 'scroll' });
+    }, { threshold: .35 });
+    protoWatch.observe(document.getElementById('prototype'));
+
+    /* the poster phone plays the flow edge-to-edge; the frame is loaded per
+       open so every run starts the flow fresh */
+    const fullproto = document.getElementById('fullproto');
+    const fullprotoFrame = document.getElementById('fullprotoFrame');
+    function fullprotoFit() {
+      const s = Math.min(innerWidth / 430, innerHeight / 932);
+      fullprotoFrame.style.transform = 'scale(' + s.toFixed(4) + ')';
+    }
+    function fullprotoOpen(source) {
+      if (fullproto.classList.contains('is-open')) return;
+      track('proto_fullscreen_open', { source: source });
+      fullprotoFrame.src = 'screens/order.html';
+      fullprotoFit();
+      fullproto.classList.add('is-open');
+      document.body.style.overflow = 'hidden';
+    }
+    document.getElementById('phoneTap').addEventListener('click', () => fullprotoOpen('tap'));
+
+    /* On a phone the scaled poster is a dead step — reaching the prototype is
+       already the intent, so it opens itself once the block is properly in view. */
+    if (matchMedia('(max-width: 720px)').matches) {
+      const autoOpen = new IntersectionObserver(entries => {
+        if (!entries[0].isIntersecting) return;
+        autoOpen.disconnect();
+        fullprotoOpen('auto');
+      }, { rootMargin: '-30% 0px -30% 0px' });
+      autoOpen.observe(document.getElementById('prototype'));
+    }
+    document.getElementById('fullprotoClose').addEventListener('click', () => {
+      fullproto.classList.remove('is-open');
+      fullprotoFrame.src = 'about:blank';
+      document.body.style.overflow = '';
+    });
+    window.addEventListener('resize', () => {
+      if (fullproto.classList.contains('is-open')) fullprotoFit();
+    });
+  </script>
+</body>
+</html>
