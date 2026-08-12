@@ -445,9 +445,14 @@
     background: var(--surface-card);
     border: 1px solid var(--neutral-300);
     display: flex; align-items: center; gap: 12px;
-    transition: border-color 200ms ease, box-shadow 200ms ease;
+    box-shadow: 0 0 0 0 rgba(35, 35, 38, 0);
+    transition: border-color 200ms ease, box-shadow 320ms ease;
   }
-  .field-amount.is-focus { border: 2px solid var(--text-primary); padding: 15px; }
+  .field-amount.is-focus {
+    border: 2px solid var(--text-primary);
+    padding: 15px;
+    box-shadow: 0 0 0 4px rgba(35, 35, 38, .06);   /* the ring blooms as focus lands */
+  }
   .field-amount[hidden] { display: none; }
   .field-amount .fa-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
   .field-amount .fa-value { display: flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
@@ -563,7 +568,8 @@
     position: absolute; left: 0; right: 0; bottom: 0; z-index: 30;
     background: #d1d4d9;
     transform: translateY(105%);
-    transition: transform 320ms var(--spring);
+    /* same clock as the sheet growing to full screen — one choreographed move */
+    transition: transform 420ms var(--spring);
     font-family: -apple-system, system-ui, 'Inter', sans-serif;
   }
   .kb.is-open { transform: none; }
@@ -1300,6 +1306,31 @@
   let kbStr = '';                      // the digits as typed, shown verbatim mid-edit
   let kbFresh = true;                  // the first keystroke replaces the shown value
 
+  /* the sheet glides its scroll on the keyboard's clock, so a low field —
+     Take profit included — rides up into view as the board rises */
+  let glideRaf = null;
+  function glideScroll(el, target, dur, settle) {
+    cancelAnimationFrame(glideRaf);
+    // the target re-resolves on every settle pass: mid-transition layout lies
+    const to = typeof target === 'function' ? target() : target;
+    const from = el.scrollTop, t0 = performance.now();
+    const ease = p => 1 - Math.pow(1 - p, 3);       // settles like the spring, no overshoot
+    (function step(now) {
+      const p = Math.min(1, (now - t0) / dur);
+      el.scrollTop = from + (to - from) * ease(p);
+      if (p < 1) { glideRaf = requestAnimationFrame(step); return; }
+      // the growing sheet may have clamped us short, or the layout may have
+      // settled elsewhere — take another, shorter ride
+      const finalTo = typeof target === 'function' ? target() : target;
+      if ((settle || 0) > 0 && Math.abs(el.scrollTop - finalTo) > 1) {
+        setTimeout(() => glideScroll(el, target, 220, settle - 1), 120);
+      }
+    })(t0);
+  }
+  // the finger always outranks the choreography
+  ['wheel', 'touchmove'].forEach(ev =>
+    document.addEventListener(ev, () => cancelAnimationFrame(glideRaf), { passive: true, capture: true }));
+
   function kbOpen(target) {
     if (kbTarget === target) return;
     kbTarget = target;
@@ -1319,7 +1350,18 @@
       $('commentInput').focus({ preventScroll: true });
       screenEl.scrollTop = 0; screenEl.scrollLeft = 0;
     }
-    if (openSheet) $(openSheet).classList.add('is-full');
+    if (openSheet) {
+      const sheet = $(openSheet);
+      sheet.classList.add('is-full');
+      // once the sheet starts growing, glide the focused field up under the
+      // header — one move with the keyboard, not a jump after it
+      const field = target === 'sl' ? $('slField') : target === 'tp' ? $('tpField') : $('commentField');
+      // no clamp against scrollHeight here: the sheet is still growing and
+      // would report no room — the browser clamps each frame on its own
+      requestAnimationFrame(() => glideScroll(sheet,
+        () => Math.min(Math.max(0, field.offsetTop - 128), Math.max(0, sheet.scrollHeight - sheet.clientHeight)),
+        460, 3));
+    }
     $('slField').classList.toggle('is-focus', target === 'sl');
     $('tpField').classList.toggle('is-focus', target === 'tp');
     renderAutoClose();
@@ -1330,7 +1372,10 @@
     kbTarget = null;
     kbNum.classList.remove('is-open');
     kbQwerty.classList.remove('is-open');
-    document.querySelectorAll('.modal').forEach(m => { m.classList.remove('is-full'); m.scrollTop = 0; });
+    document.querySelectorAll('.modal').forEach(m => {
+      if (m.classList.contains('is-full')) glideScroll(m, 0, 360);   // ride back down with the shrink
+      m.classList.remove('is-full');
+    });
     $('slField').classList.remove('is-focus');
     $('tpField').classList.remove('is-focus');
     $('commentInput').blur();
