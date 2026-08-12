@@ -289,12 +289,15 @@
   .presets { display: flex; gap: 8px; padding: 16px; }
   .presets button {
     flex: 1;
-    padding: 8px 16px;
+    padding: 6px 14px;                     /* 8/16 minus the border below */
     border-radius: var(--r-card);
     background: var(--surface-card);
+    border: 2px solid transparent;         /* the component's Selected state */
     display: flex; flex-direction: column; align-items: center; gap: 0;
     white-space: nowrap;
+    transition: border-color 220ms ease, opacity 90ms ease-out;
   }
+  .presets button.is-sel { border-color: var(--data-positive); }
   .presets .sub { color: var(--text-secondary); }
 
   /* the Deposit rescue slides open when the number outgrows the balance */
@@ -408,6 +411,8 @@
   }
   .modal.is-open { transform: translateY(0); visibility: visible; }
   .modal.is-leaving { visibility: visible; }
+  /* the keyboard pushes a short sheet up, the way iOS floats a field above it */
+  .modal.is-open.is-lifted { transform: translateY(-250px); }
 
   .m-head { display: flex; flex-direction: column; gap: 20px; }
   .m-head .m-grab { width: 36px; height: 5px; margin: 0 auto; border-radius: 999px; background: var(--neutral-300); }
@@ -445,7 +450,8 @@
   .field-amount.is-focus { border: 2px solid var(--text-primary); padding: 15px; }
   .field-amount .fa-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
   .field-amount .fa-value { display: flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
-  .field-amount .caret { width: 2px; height: 21px; border-radius: 999px; background: var(--text-primary); animation: caretBlink 1.1s steps(1) infinite; }
+  .field-amount .caret { display: none; width: 2px; height: 21px; border-radius: 999px; background: var(--text-primary); animation: caretBlink 1.1s steps(1) infinite; }
+  .field-amount.is-focus .caret { display: block; }
   @keyframes caretBlink { 50% { opacity: 0; } }
   .field-amount .fa-sub { color: var(--text-secondary); }
   .field-amount .clear {
@@ -523,6 +529,57 @@
   }
   .place.is-placed { animation: placePulse 360ms var(--spring); }
 
+  /* ================= the iOS keyboard (built from the iOS 26 kit) =================
+     Two boards: a number pad for the amount fields, QWERTY for the note.
+     They ride up over everything, as the system keyboard does. */
+  .kb {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 30;
+    background: #d1d4d9;
+    transform: translateY(105%);
+    transition: transform 320ms var(--spring);
+    font-family: -apple-system, system-ui, 'Inter', sans-serif;
+  }
+  .kb.is-open { transform: none; }
+  .kb .k {
+    display: flex; align-items: center; justify-content: center;
+    background: #fff;
+    border-radius: 5px;
+    box-shadow: 0 1px 0 #898a8d;
+    font-size: 25px; font-weight: 400; color: #000;
+    transition: none;
+  }
+  .kb .k:active { background: #e2e4e9; opacity: 1; }
+  .kb .k--alt { background: #abb0ba; font-size: 16px; }
+  .kb .k--alt:active { background: #fff; }
+  .kb .k--ghost { background: none; box-shadow: none; }
+  .kb .k--ghost:active { background: none; }
+
+  .kb--num {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 7px;
+    padding: 7px 7px 37px;
+  }
+  .kb--num .k { height: 46px; }
+
+  .kb--qwerty { padding: 8px 3px 38px; display: flex; flex-direction: column; gap: 11px; }
+  .kb--qwerty .krow { display: flex; justify-content: center; gap: 6px; padding: 0 3px; }
+  .kb--qwerty .k { width: 38.5px; height: 42px; font-size: 23px; flex: none; }
+  .kb--qwerty .k--wide { width: 48px; font-size: 17px; }
+  .kb--qwerty .k--bottom { width: 90px; font-size: 16px; }
+  .kb--qwerty .k--space { flex: 1; width: auto; font-size: 16px; }
+
+  /* the home-indicator band every board carries */
+  .kb::after {
+    content: "";
+    position: absolute; left: 50%; bottom: 8px;
+    width: 140px; height: 5px;
+    transform: translateX(-50%);
+    border-radius: 999px;
+    background: #000;
+    opacity: .9;
+  }
+
   /* ================= demo film cursor (as in the Plata deck) ================= */
   body.is-demo #screen { pointer-events: none; }
   .demo-cursor {
@@ -545,8 +602,10 @@
 <body>
 <div id="screen">
 
-  <!-- ============ ORDER ============ -->
-  <div class="order" id="order">
+  <!-- ============ ORDER ============
+       Opens in the tall posture (266:1430): rows and Share signal in reach.
+       Pulling the grabber down folds the sheet back and reveals the chart. -->
+  <div class="order is-expanded" id="order">
     <div class="statusbar">
       <div class="sb-time">9:41</div>
       <div class="sb-levels">
@@ -740,7 +799,7 @@
         </span>
         <span class="t-title">Stop loss</span>
       </div>
-      <div class="field-amount is-focus" id="slField">
+      <div class="field-amount" id="slField">
         <span class="fa-text">
           <span class="fa-value">
             <span class="t-body-em" id="mSlEur">−€10.89</span>
@@ -780,7 +839,7 @@
       <div style="display: flex; flex-direction: column; gap: 8px;">
         <div class="field-amount" id="tpField">
           <span class="fa-text">
-            <span class="fa-value"><span class="t-body-em" id="mTpEur">+€21.78</span></span>
+            <span class="fa-value"><span class="t-body-em" id="mTpEur">+€21.78</span><span class="caret"></span></span>
             <span class="fa-sub t-caption" id="mTpSub">40 pips above price</span>
           </span>
           <button class="clear" data-clear="tp" aria-label="Clear take profit">
@@ -846,12 +905,24 @@
     </div>
     <div class="m-body m-fade">
       <p class="m-note t-caption" style="margin: 0;">A note to yourself. Shows up with the position in your history.</p>
-      <div class="comment-field">
-        <input id="commentInput" type="text" placeholder="Add a note" autocomplete="off">
+      <div class="comment-field" id="commentField">
+        <input id="commentInput" type="text" placeholder="Add a note" autocomplete="off" inputmode="none">
       </div>
     </div>
     <button class="m-done t-button" id="commentDone">Done</button>
   </div>
+
+  <!-- ============ iOS KEYBOARDS ============ -->
+  <div class="kb kb--num" id="kbNum">
+    <button class="k" data-k="1">1</button><button class="k" data-k="2">2</button><button class="k" data-k="3">3</button>
+    <button class="k" data-k="4">4</button><button class="k" data-k="5">5</button><button class="k" data-k="6">6</button>
+    <button class="k" data-k="7">7</button><button class="k" data-k="8">8</button><button class="k" data-k="9">9</button>
+    <button class="k" data-k=".">.</button><button class="k" data-k="0">0</button>
+    <button class="k k--ghost" data-k="del" aria-label="Delete">
+      <svg width="26" height="20" viewBox="0 0 26 20" fill="none"><path d="M9.2 1h13.3A2.5 2.5 0 0 1 25 3.5v13a2.5 2.5 0 0 1-2.5 2.5H9.2a2.5 2.5 0 0 1-1.9-.87L1.6 11.6a2.5 2.5 0 0 1 0-3.26L7.3 1.87A2.5 2.5 0 0 1 9.2 1Z" stroke="#000" stroke-width="1.6"/><path d="M12.5 6.5l7 7M19.5 6.5l-7 7" stroke="#000" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+  <div class="kb kb--qwerty" id="kbQwerty"></div>
 
 </div>
 
@@ -900,12 +971,19 @@
     if (over) $('lotsOut').textContent = 'Your balance covers 0.85 lots';
     $('vol').classList.toggle('is-error', over);
 
-    // slider geometry: fill ends at the knob; knob rides the fill's right edge
+    // slider geometry, exactly as the Figma component draws it:
+    // fill = the value's share of the track (never thinner than the knob),
+    // knob right edge 2px inside the fill
     const t = Math.max(0, Math.min(1, lotsToT(state.lots)));
-    const track = 398 - 32;   // card width minus paddings — knob travel
-    const fillW = Math.max(36, t * 366 + 36 - 4);
-    sliderFill.style.width = Math.min(366, fillW) + 'px';
-    sliderKnob.style.left = Math.min(364, Math.max(34, fillW - 2)) + 'px';
+    const fillW = Math.max(36, Math.min(366, t * 366));
+    sliderFill.style.width = fillW + 'px';
+    sliderKnob.style.left = (fillW - 2) + 'px';
+
+    // preset chips own their Selected state while the value sits on them
+    document.querySelectorAll('.presets button').forEach(b => {
+      const pl = Math.round(BALANCE * (+b.dataset.pct) / 100 / MARGIN_PER_LOT * 100) / 100;
+      b.classList.toggle('is-sel', Math.abs(pl - state.lots) < 0.005);
+    });
 
     // auto close derives from volume
     renderAutoClose();
@@ -1005,24 +1083,26 @@
   function renderAutoClose() {
     const sl = state.lots * state.slPips * EUR_PER_PIP_LOT;
     const tp = state.lots * state.tpPips * EUR_PER_PIP_LOT;
-    $('slPips').textContent = state.slOn ? '−' + state.slPips + ' pips' : 'Not set';
+    const slP = Math.round(state.slPips), tpP = Math.round(state.tpPips);
+    $('slPips').textContent = state.slOn ? '−' + slP + ' pips' : 'Not set';
     $('slEur').textContent = state.slOn ? '−' + fmtEur(sl) : '';
-    $('tpPips').textContent = state.tpOn ? '+' + state.tpPips + ' pips' : 'Not set';
+    $('tpPips').textContent = state.tpOn ? '+' + tpP + ' pips' : 'Not set';
     $('tpEur').textContent = state.tpOn ? '+' + fmtEur(tp) : '';
-    // sheet mirrors the block
-    $('mSlEur').textContent = state.slOn ? '−' + fmtEur(sl) : 'Not set';
-    $('mSlSub').textContent = state.slOn ? state.slPips + ' pips below price' : 'Tap to set';
-    $('mTpEur').textContent = state.tpOn ? '+' + fmtEur(tp) : 'Not set';
-    $('mTpSub').textContent = state.tpOn ? state.tpPips + ' pips above price' : 'Tap to set';
+    // sheet mirrors the block; a field mid-edit shows the digits as typed
+    $('mSlEur').textContent = kbTarget === 'sl' ? '−€' + kbStr : (state.slOn ? '−' + fmtEur(sl) : 'Not set');
+    $('mSlSub').textContent = state.slOn ? slP + ' pips below price' : 'Tap to set';
+    $('mTpEur').textContent = kbTarget === 'tp' ? '+€' + kbStr : (state.tpOn ? '+' + fmtEur(tp) : 'Not set');
+    $('mTpSub').textContent = state.tpOn ? tpP + ' pips above price' : 'Tap to set';
   }
 
   document.querySelectorAll('[data-clear]').forEach(b => b.addEventListener('click', e => {
     e.stopPropagation();
     if (b.dataset.clear === 'sl') state.slOn = false; else state.tpOn = false;
+    if (kbTarget === b.dataset.clear) kbClose();
     renderAutoClose();
   }));
-  $('slField').addEventListener('click', () => { state.slOn = true; renderAutoClose(); });
-  $('tpField').addEventListener('click', () => { state.tpOn = true; renderAutoClose(); });
+  $('slField').addEventListener('click', () => kbOpen('sl'));
+  $('tpField').addEventListener('click', () => kbOpen('tp'));
   $('swTrailing').addEventListener('click', () => { state.trailing = !state.trailing; $('swTrailing').classList.toggle('is-on', state.trailing); });
   $('swBreakeven').addEventListener('click', () => { state.breakeven = !state.breakeven; $('swBreakeven').classList.toggle('is-on', state.breakeven); });
   $('addLevel').addEventListener('click', () => track('flow_addlevel'));
@@ -1039,6 +1119,7 @@
   }
   function sheetClose(revert) {
     if (!openSheet) return;
+    kbClose();
     const el = $(openSheet);
     if (revert) { Object.assign(state, snapshot); syncControls(); }
     el.classList.add('is-leaving');
@@ -1055,7 +1136,11 @@
     $('commentInput').value = state.comment;
   }
   document.querySelectorAll('[data-cancel]').forEach(b => b.addEventListener('click', () => sheetClose(true)));
-  $('dimmer').addEventListener('click', () => sheetClose(true));
+  $('dimmer').addEventListener('click', () => { if (kbTarget) { kbClose(); return; } sheetClose(true); });
+  // a tap on the sheet's own background puts the keyboard away first, as iOS does
+  document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => {
+    if (kbTarget && !e.target.closest('.field-amount, .comment-field, .kb')) kbClose();
+  }));
 
   $('acBlock').addEventListener('click', () => sheetOpen('mAutoclose'));
   $('acDone').addEventListener('click', () => { track('flow_autoclose_done', { sl: state.slOn, tp: state.tpOn, trailing: state.trailing }); sheetClose(false); });
@@ -1099,7 +1184,8 @@
     const v = state.comment.trim();
     $('commentVal').textContent = v ? (v.length > 14 ? v.slice(0, 13) + '…' : v) : 'Add';
   }
-  $('rowComment').addEventListener('click', () => { $('commentInput').value = state.comment; sheetOpen('mComment'); setTimeout(() => $('commentInput').focus(), 460); });
+  $('rowComment').addEventListener('click', () => { $('commentInput').value = state.comment; sheetOpen('mComment'); });
+  $('commentField').addEventListener('click', () => kbOpen('comment'));
   $('commentInput').addEventListener('input', e => { state.comment = e.target.value; });
   $('commentDone').addEventListener('click', () => { track('flow_comment_done', { has_note: !!state.comment.trim() }); sheetClose(false); });
 
@@ -1152,6 +1238,126 @@
   }
   setTimeout(tickPrice, 1800);
 
+  /* ===================== the iOS keyboards =====================
+     kbTarget: 'sl' | 'tp' — the number pad edits the € amount;
+     'comment' — QWERTY writes into the real input. A hardware
+     keyboard types into whichever board is up. */
+  const kbNum = $('kbNum'), kbQwerty = $('kbQwerty');
+  let kbTarget = null;                 // 'sl' | 'tp' | 'comment'
+  let kbStr = '';                      // the digits as typed, shown verbatim mid-edit
+  let kbFresh = true;                  // the first keystroke replaces the shown value
+
+  function kbOpen(target) {
+    if (kbTarget === target) return;
+    kbTarget = target;
+    kbFresh = true;
+    if (target === 'sl' || target === 'tp') {
+      const on = target === 'sl' ? (state.slOn = true) : (state.tpOn = true);
+      const eur = state.lots * (target === 'sl' ? state.slPips : state.tpPips) * EUR_PER_PIP_LOT;
+      kbStr = String(Math.round(eur * 100) / 100);
+      kbQwerty.classList.remove('is-open');
+      kbNum.classList.add('is-open');
+    } else {
+      kbNum.classList.remove('is-open');
+      kbQwerty.classList.add('is-open');
+      qwertyRender();
+      // preventScroll: a plain focus() scrolls the clipped #screen and
+      // drags the whole stage 660px off its frame
+      $('commentInput').focus({ preventScroll: true });
+      screenEl.scrollTop = 0; screenEl.scrollLeft = 0;
+      $('mComment').classList.add('is-lifted');
+    }
+    $('slField').classList.toggle('is-focus', target === 'sl');
+    $('tpField').classList.toggle('is-focus', target === 'tp');
+    renderAutoClose();
+    track('flow_kb_open', { field: target });
+  }
+  function kbClose() {
+    if (!kbTarget) return;
+    kbTarget = null;
+    kbNum.classList.remove('is-open');
+    kbQwerty.classList.remove('is-open');
+    document.querySelectorAll('.modal').forEach(m => m.classList.remove('is-lifted'));
+    $('slField').classList.remove('is-focus');
+    $('tpField').classList.remove('is-focus');
+    $('commentInput').blur();
+    renderAutoClose();
+  }
+
+  /* ---- number pad → the € amount, pips derived live ---- */
+  function numKey(k) {
+    if (k === 'del') {
+      kbStr = kbFresh ? '' : kbStr.slice(0, -1);
+      kbFresh = false;
+    } else if (k === '.') {
+      if (kbStr.includes('.') && !kbFresh) return;
+      kbStr = kbFresh ? '0.' : (kbStr === '' ? '0.' : kbStr + '.');
+      kbFresh = false;
+    } else {
+      if (kbFresh) { kbStr = k; kbFresh = false; }
+      else if (kbStr.replace('.', '').length < 6) kbStr += k;
+    }
+    const eur = parseFloat(kbStr) || 0;
+    const pips = eur / (state.lots * EUR_PER_PIP_LOT);
+    if (kbTarget === 'sl') state.slPips = pips; else state.tpPips = pips;
+    renderAutoClose();
+  }
+  kbNum.querySelectorAll('[data-k]').forEach(b => b.addEventListener('click', () => numKey(b.dataset.k)));
+
+  /* ---- QWERTY → the note ---- */
+  const KB_ABC = ['qwertyuiop', 'asdfghjkl', 'zxcvbnm'];
+  const KB_NUM = ['1234567890', '-/:;()€&@"', '.,?!\''];
+  let kbShift = true, kbLayer = 'abc';
+
+  function qwertyKey(k) {
+    const input = $('commentInput');
+    if (k === 'del') input.value = input.value.slice(0, -1);
+    else if (k === 'shift') { kbShift = !kbShift; qwertyRender(); return; }
+    else if (k === 'layer') { kbLayer = kbLayer === 'abc' ? 'num' : 'abc'; kbShift = false; qwertyRender(); return; }
+    else if (k === 'return') { kbClose(); return; }
+    else {
+      input.value += kbShift && kbLayer === 'abc' ? k.toUpperCase() : k;
+      if (kbShift) { kbShift = false; qwertyRender(); }
+    }
+    state.comment = input.value;
+  }
+  function qwertyRender() {
+    const rows = kbLayer === 'abc' ? KB_ABC : KB_NUM;
+    let h = '';
+    rows.forEach((row, i) => {
+      h += '<div class="krow">';
+      if (i === 2) h += kbLayer === 'abc'
+        ? '<button class="k k--alt k--wide" data-k="shift">' + (kbShift ? '⬆' : '⇧') + '</button>'
+        : '<button class="k k--alt k--wide" data-k="layer">ABC</button>';
+      for (const ch of row) {
+        const cap = kbShift && kbLayer === 'abc' ? ch.toUpperCase() : ch;
+        h += '<button class="k" data-k="' + ch.replace('"', '&quot;') + '">' + (cap === '"' ? '&quot;' : cap) + '</button>';
+      }
+      if (i === 2) h += '<button class="k k--alt k--wide" data-k="del">⌫</button>';
+      h += '</div>';
+    });
+    h += '<div class="krow">'
+      +  '<button class="k k--alt k--bottom" data-k="layer">' + (kbLayer === 'abc' ? '123' : 'ABC') + '</button>'
+      +  '<button class="k k--space" data-k=" ">space</button>'
+      +  '<button class="k k--alt k--bottom" data-k="return">return</button>'
+      +  '</div>';
+    kbQwerty.innerHTML = h;
+    kbQwerty.querySelectorAll('[data-k]').forEach(b => b.addEventListener('click', () => qwertyKey(b.dataset.k)));
+  }
+
+  /* ---- the hardware keyboard drives whichever board is up ---- */
+  document.addEventListener('keydown', e => {
+    if (!kbTarget) return;
+    if (kbTarget === 'comment') {
+      if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); kbClose(); }
+      return;   // the real input handles the rest natively
+    }
+    if (/^[0-9]$/.test(e.key)) { e.preventDefault(); numKey(e.key); }
+    else if (e.key === '.' || e.key === ',') { e.preventDefault(); numKey('.'); }
+    else if (e.key === 'Backspace') { e.preventDefault(); numKey('del'); }
+    else if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); kbClose(); }
+  });
+
   /* ===================== funnel: the first real touch ===================== */
   let touched = false;
   document.addEventListener('pointerdown', () => {
@@ -1181,10 +1387,10 @@
       { sel: '#acBlock',                                   wait: 1100 },
       { sel: '#swTrailing',                                wait: 900 },
       { sel: '#acDone',                                    wait: 1000 },
-      { sel: '#grabber',                                   wait: 1100 },
       { sel: '#rowRange',                                  wait: 1100 },
       { sel: '#rangePresets button[data-pips="5"]',        wait: 900 },
       { sel: '#rangeDone',                                 wait: 1000 },
+      { sel: '#grabber',                                   wait: 1200 },   // pull down: the chart comes out
       { sel: '#placeBtn',                                  wait: 2000 },
     ];
 
@@ -1223,7 +1429,7 @@
       state.rangeAuto = true; state.rangePips = 5; state.comment = '';
       state.slOn = true; state.tpOn = true;
       syncControls(); renderRangeRow(); renderCommentRow(); renderVolume();
-      setExpanded(false);
+      setExpanded(true);   // back to the opening posture
       await sleep(900);
       cursor.classList.remove('is-away');
     }
