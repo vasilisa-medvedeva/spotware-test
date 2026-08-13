@@ -35,10 +35,10 @@
    flow_place's sl / tp / levels, and flow_sheet_done{sheet:'autoclose'} carries
    `accepted` — whether the proposed 20/40 pair was kept as offered. */
 (function () {
-  /* Fill this in with the property for THIS deck. Left blank on purpose:
-     borrowing another project's ID would quietly pour Spotware's numbers into
-     that project's reports, which is worse than measuring nothing. */
-  var ID = '';
+  /* The 'Spotware test' GA4 property (stream: Spotware test deck). Its own
+     tag on purpose — the site-wide 'Portfolio' tag GA offered to reuse would
+     have poured this deck's numbers into the portfolio's reports. */
+  var ID = 'G-3S1RS6K0K6';
 
   var demo = location.search.indexOf('demo=1') > -1;
   var local = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
