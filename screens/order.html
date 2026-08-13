@@ -722,11 +722,7 @@
     color: #fff;
     box-shadow: 0 12px 28px rgba(0, 0, 0, .22);
   }
-  .positions.is-live .fab { animation: fabIn 560ms cubic-bezier(0.22, 1.2, 0.36, 1) 460ms backwards; }
-  @keyframes fabIn {
-    from { opacity: 0; transform: translateY(18px) scale(.9); }
-    to   { opacity: 1; transform: none; }
-  }
+  /* the FAB arrives with the screen itself — no second entrance */
   .fab .fab-ic { position: relative; width: 32px; height: 32px; }
   .fab .fab-ic img { position: absolute; }
   .fab .fab-ic .board { left: 8px; top: 2px; width: 17px; height: 26.6px; }
@@ -756,10 +752,11 @@
     font-size: 12px; line-height: 16px; font-weight: 500;
   }
 
-  /* ---- Toast / Filled (103:328) ---- */
+  /* ---- Toast / Filled (103:328, 428:8287) ----
+     Drops from the top, banner-wise, and stops shy of the list toggle —
+     the tabs stay half in view under it, never fully covered. */
   .toast {
-    /* a banner over the page, clear of the top bar (which ends at 142) */
-    position: absolute; left: 16px; right: 16px; top: 158px; z-index: 20;
+    position: absolute; left: 16px; right: 16px; top: 120px; z-index: 20;
     display: flex; align-items: center; gap: 12px;
     padding: 16px;
     border-radius: var(--r-card);
@@ -773,6 +770,16 @@
   }
   .toast.is-live { opacity: 1; transform: none; }
   .toast .label { flex: 1; min-width: 0; }
+  /* the "closed" variant (428:8287) drops the check and sets its text in Regular */
+  .toast.no-check .check { display: none; }
+  .toast.no-check .label { font-weight: 400; }
+
+  /* a closed position folds away before it goes */
+  .pos-row.is-closing, .pos-child.is-closing {
+    height: 0; opacity: 0; overflow: hidden;
+    transition: height 320ms var(--spring), opacity 200ms ease;
+  }
+  .pos-children.is-closing { grid-template-rows: 0fr; }
 
   /* ================= the iOS keyboard (built from the iOS 26 kit) =================
      Two boards: a number pad for the amount fields, QWERTY for the note.
@@ -1059,7 +1066,7 @@
       </div>
 
       <div class="pos-list">
-        <div class="pos-row">
+        <div class="pos-row" id="rowAudusd">
           <div class="lead">
             <span class="badge badge--win">
               <svg class="trend" width="22" height="14" viewBox="0 0 22.5 13.5">
@@ -1076,9 +1083,9 @@
             <span class="guard t-micro-r">Stop −€61</span>
           </span>
           <span class="row-action">
-            <span class="remove">
+            <button class="remove" id="rmAudusd" aria-label="Close AUDUSD">
               <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8" stroke="#232326" stroke-width="1.8" stroke-linecap="round"/></svg>
-            </span>
+            </button>
           </span>
         </div>
 
@@ -1145,9 +1152,9 @@
     </div>
   </div>
 
-  <!-- Toast / Filled (103:328) -->
+  <!-- Toast / Filled (103:328 with the check, 428:8287 without) -->
   <div class="toast" id="toast">
-    <img src="../assets/figma/toast-check.svg" width="17" height="14" alt="">
+    <img class="check" src="../assets/figma/toast-check.svg" width="17" height="14" alt="">
     <span class="label t-body-em" id="toastLabel">GBPJPY order filled</span>
     <svg width="20" height="20" viewBox="0 0 20 20"><path d="M7.5 4.5L13 10l-5.5 5.5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
   </div>
@@ -1646,64 +1653,123 @@
       positions.classList.add('is-live');
       order.classList.add('is-away');
       // the toast lands once the new screen is settled, not on top of the ride
-      setTimeout(() => {
-        $('toastLabel').textContent = 'GBPJPY order filled';
-        toast.classList.add('is-live');
-        clearTimeout(toastTimer);
-        toastTimer = setTimeout(() => toast.classList.remove('is-live'), 3400);
-      }, 420);
+      setTimeout(() => showToast('GBPJPY order filled', true), 420);
       track('flow_positions');
     }, 1400);
   });
 
+  /* one toast, two voices: the filled one carries the check, the closed
+     one (428:8287) speaks plain */
+  function showToast(label, check) {
+    $('toastLabel').textContent = label;
+    toast.classList.toggle('no-check', !check);
+    toast.classList.add('is-live');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('is-live'), 3400);
+  }
+
   /* The list tells the truth about the order that was just placed. The new
      position joins the GBPJPY group, which already holds two small ones —
-     so the group row is a sum and the children are the three of them. */
+     the group row is a sum, the children are the three of them, and every
+     ✕ closes its position for real: the row folds, the toast reports, the
+     account recounts. */
+  const AUDUSD_PL = -2.11;
+  let posKids = [], posAudusd = true;
+  const signEur = n => (n >= 0 ? '+' : '−') + fmtEur(Math.abs(n));
+
   function fillPositions() {
     const sell = state.side === 'sell';
-    const lots = state.lots;
     const stopEur = l => l * state.slPips * EUR_PER_PIP_LOT;
-
-    // ours, then the two that were already open
-    const kids = [
-      { lots: lots, pl: 65.3 * lots, stop: state.slOn ? stopEur(lots) : null },
+    posKids = [
+      { lots: state.lots, pl: 65.3 * state.lots, stop: state.slOn ? stopEur(state.lots) : null },
       { lots: 0.01, pl: 0.27, stop: stopEur(0.01) },
       { lots: 0.01, pl: 0.11, stop: stopEur(0.01) },
     ];
-    const groupLots = Math.round(kids.reduce((s, k) => s + k.lots, 0) * 100) / 100;
-    const groupPl = kids.reduce((s, k) => s + k.pl, 0);
-    const naked = kids.filter(k => k.stop === null).length;
-
-    $('newSub').textContent = kids.length + ' positions · ' + fmt2(groupLots) + ' lots';
+    posAudusd = true;
+    ['rowAudusd', 'newRow', 'newChildren'].forEach(id => $(id).classList.remove('is-closing'));
     $('newBadge').className = 'badge ' + (sell ? 'badge--loss' : 'badge--win');
     $('newTrend').querySelector('.up').style.opacity = sell ? 0 : 1;
     $('newTrend').querySelector('.down').style.opacity = sell ? 1 : 0;
-    $('newPl').textContent = signEur(groupPl);
-    // protected as a whole, or the count that is not
-    $('newGuard').textContent = naked
-      ? naked + ' of ' + kids.length + ' no stop'
-      : 'Stop −' + fmtEur(kids.reduce((s, k) => s + k.stop, 0));
+    renderKids();
+    renderGroupRow();
+    renderPosSummary();
+  }
 
-    $('newChildren').querySelector('.inner').innerHTML = kids.map((k, i) =>
+  function renderGroupRow() {
+    const n = posKids.length;
+    const lots = Math.round(posKids.reduce((s, k) => s + k.lots, 0) * 100) / 100;
+    const pl = posKids.reduce((s, k) => s + k.pl, 0);
+    const naked = posKids.filter(k => k.stop === null).length;
+    $('newSub').textContent = n + (n === 1 ? ' position · ' : ' positions · ') + fmt2(lots) + ' lots';
+    $('newPl').textContent = signEur(pl);
+    $('newGuard').textContent = naked
+      ? naked + ' of ' + n + ' no stop'
+      : 'Stop −' + fmtEur(posKids.reduce((s, k) => s + k.stop, 0));
+  }
+
+  function renderKids() {
+    $('newChildren').querySelector('.inner').innerHTML = posKids.map((k, i) =>
       '<div class="pos-child" style="transition-delay:' + (i * 45) + 'ms">'
       + '<span class="l t-body">' + fmt2(k.lots) + ' lots</span>'
       + '<span class="r"><span class="pl t-body-em">' + signEur(k.pl) + '</span>'
       + '<span class="guard t-micro-r">' + (k.stop === null ? 'No stop' : 'Stop −' + fmtEur(k.stop)) + '</span></span>'
-      + '<span class="row-action"><span class="remove">'
+      + '<span class="row-action"><button class="remove" data-kid="' + i + '" aria-label="Close position">'
       + '<svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8" stroke="#232326" stroke-width="1.8" stroke-linecap="round"/></svg>'
-      + '</span></span></div>'
+      + '</button></span></div>'
     ).join('');
+    $('newChildren').querySelectorAll('[data-kid]').forEach(b => b.addEventListener('click', e => {
+      e.stopPropagation();
+      closeKid(+b.dataset.kid, b.closest('.pos-child'));
+    }));
+  }
 
-    const total = groupPl - 2.11;   // the AUDUSD position that was already there
+  function renderPosSummary() {
+    const total = (posAudusd ? AUDUSD_PL : 0) + posKids.reduce((s, k) => s + k.pl, 0);
+    const count = (posAudusd ? 1 : 0) + posKids.length;
     $('sumPl').textContent = signEur(total) + ' open P&L';
     $('sumPl').className = 'pl-line ' + (total >= 0 ? 'win' : 'loss') + ' t-body-em';
-    $('posCount').textContent = $('navCount').textContent = kids.length + 1;
-    $('sumCount').textContent = (kids.length + 1) + ' positions';
+    $('posCount').textContent = $('navCount').textContent = count;
+    $('sumCount').textContent = count + (count === 1 ? ' position' : ' positions');
   }
-  const signEur = n => (n >= 0 ? '+' : '−') + fmtEur(Math.abs(n));
 
-  /* the group opens onto the positions behind it */
-  $('newRow').addEventListener('click', () => {
+  /* ---- the ✕s ---- */
+  $('rmAudusd').addEventListener('click', () => {
+    if (!posAudusd) return;
+    posAudusd = false;
+    $('rowAudusd').classList.add('is-closing');
+    showToast('AUDUSD closed', false);
+    setTimeout(renderPosSummary, 340);
+    track('flow_close_position', { symbol: 'AUDUSD' });
+  });
+  function foldGroup() {
+    $('newRow').classList.add('is-closing');
+    $('newRow').classList.remove('is-open');
+    $('newChildren').classList.add('is-closing');
+  }
+  function closeKid(i, el) {
+    const k = posKids[i];
+    el.classList.add('is-closing');
+    el.style.transitionDelay = '0ms';
+    showToast('GBPJPY ' + fmt2(k.lots) + ' lots closed', false);
+    setTimeout(() => {
+      posKids.splice(i, 1);
+      if (posKids.length) { renderKids(); renderGroupRow(); }
+      else foldGroup();
+      renderPosSummary();
+    }, 340);
+    track('flow_close_position', { symbol: 'GBPJPY', lots: k.lots });
+  }
+
+  /* the group opens onto the positions behind it; its ✕ closes all three */
+  $('newRow').addEventListener('click', e => {
+    if (e.target.closest('.remove')) {
+      posKids = [];
+      foldGroup();
+      showToast('GBPJPY closed', false);
+      setTimeout(renderPosSummary, 340);
+      track('flow_close_position', { symbol: 'GBPJPY', all: true });
+      return;
+    }
     const open = $('newRow').classList.toggle('is-open');
     track('flow_group_toggle', { open: open });
   });
