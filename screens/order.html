@@ -400,7 +400,11 @@
     transform: translateY(105%);
     transition: transform 460ms var(--spring);
     visibility: hidden;
+    overflow-y: auto;              /* content taller than the screen scrolls… */
+    scrollbar-width: none;
   }
+  .modal::-webkit-scrollbar { display: none; }
+  .modal > * { flex-shrink: 0; }   /* …instead of crushing the children (Done was 40px tall) */
   .modal.is-open { transform: translateY(var(--peek, 0px)); visibility: visible; }
   .modal.is-leaving { visibility: visible; }
   /* `none`, not translateY(0): a live transform would trap the pinned
@@ -501,13 +505,25 @@
   /* ---- the take-profit ladder (Levels=Ladder variant) ---- */
   .m-sechead .m-titles { display: flex; flex-direction: column; gap: 2px; }
   .m-sechead .m-titles [hidden] { display: none; }
-  .tp-levels { display: flex; flex-direction: column; gap: 4px; width: 100%; }
+  .tp-levels { display: flex; flex-direction: column; width: 100%; }
   .tp-levels[hidden] { display: none; }
   .tp-level {
     height: 64px; padding: 12px 16px;
+    margin-bottom: 4px;
     border-radius: var(--r-surface); background: var(--surface-card);
     display: flex; align-items: center; gap: 12px;
-    animation: levelIn 420ms var(--spring) backwards;
+    overflow: hidden;
+    transition: height 320ms var(--spring), margin 320ms var(--spring),
+                padding 320ms var(--spring), opacity 200ms ease;
+  }
+  .tp-level:last-child { margin-bottom: 0; }
+  /* only a genuinely new row plays the entrance */
+  .tp-level.is-adding { animation: levelIn 420ms var(--spring) backwards; }
+  /* a removed one folds shut before it leaves the DOM */
+  .tp-level.is-removing {
+    height: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0;
+    opacity: 0;
+    pointer-events: none;
   }
   @keyframes levelIn {
     from { opacity: 0; transform: translateY(10px); }
@@ -516,7 +532,7 @@
   .tp-level .col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   .tp-level .col .sub { color: var(--text-secondary); }
   .tp-level .col--profit { align-items: flex-end; text-align: right; }
-  .tp-level .col--profit .val { color: var(--data-positive); }
+  .tp-level .col--profit .val-profit { color: var(--data-positive); }
   .tp-level .remove {
     flex: none; width: 32px; height: 32px;
     border-radius: var(--r-surface);
@@ -1496,29 +1512,55 @@
     if (openSheet === 'mAutoclose') sheetFit();
   }
 
-  /* ---- the ladder itself: rows in the sheet, estimate under the title ---- */
+  /* ---- the ladder itself: rows in the sheet, estimate under the title ----
+     Rows are keyed, never re-rendered wholesale: the numbers settle in
+     place, only a genuinely new row plays the entrance, and a removed one
+     folds shut before it leaves — the rows below ride up on its collapse. */
   function renderLadder() {
     const ladder = state.tpLadder >= 2;
     $('tpField').hidden = ladder;
     $('tpLevels').hidden = !ladder;
     $('tpEst').hidden = !ladder;
-    if (!ladder) return;
+    const wrap = $('tpLevels');
+    if (!ladder) { wrap.innerHTML = ''; return; }
     $('tpEst').textContent = 'Estimated profit: up to ' + fmtEur(ladderTotal());
-    $('tpLevels').innerHTML = ladderLevels().map((l, i) =>
-      '<div class="tp-level" style="animation-delay:' + (i * 50) + 'ms">'
-      + '<span class="col"><span class="t-body">' + l.pips + '</span><span class="sub t-micro-r">pips</span></span>'
-      + '<span class="col"><span class="t-body">' + l.qty + '%</span><span class="sub t-micro-r">quantity</span></span>'
-      + '<span class="col col--profit"><span class="val t-body-em">+' + fmtEur(l.pips * l.qty / 100 * state.lots * EUR_PER_PIP_LOT) + '</span><span class="sub t-micro-r">profit</span></span>'
-      + '<button class="remove" data-remove aria-label="Remove level">'
-      + '<svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>'
-      + '</button></div>'
-    ).join('');
-    $('tpLevels').querySelectorAll('[data-remove]').forEach(b => b.addEventListener('click', () => {
+    const want = ladderLevels();
+    let rows = [...wrap.querySelectorAll('.tp-level:not(.is-removing)')];
+    // newcomers arrive at the end, staggered if several land at once
+    for (let i = rows.length; i < want.length; i++) {
+      const row = document.createElement('div');
+      row.className = 'tp-level is-adding';
+      row.style.animationDelay = ((i - rows.length) * 60) + 'ms';
+      row.innerHTML =
+        '<span class="col"><span class="val-pips t-body"></span><span class="sub t-micro-r">pips</span></span>'
+        + '<span class="col"><span class="val-qty t-body"></span><span class="sub t-micro-r">quantity</span></span>'
+        + '<span class="col col--profit"><span class="val-profit t-body-em"></span><span class="sub t-micro-r">profit</span></span>'
+        + '<button class="remove" aria-label="Remove level">'
+        + '<svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>'
+        + '</button>';
+      row.querySelector('.remove').addEventListener('click', () => removeLevel(row));
+      wrap.appendChild(row);
+    }
+    rows = [...wrap.querySelectorAll('.tp-level:not(.is-removing)')];
+    rows.slice(want.length).forEach(r => r.remove());   // shrink from elsewhere (Cancel, rewind)
+    want.forEach((l, i) => {
+      rows[i].querySelector('.val-pips').textContent = l.pips;
+      rows[i].querySelector('.val-qty').textContent = l.qty + '%';
+      rows[i].querySelector('.val-profit').textContent = '+' + fmtEur(l.pips * l.qty / 100 * state.lots * EUR_PER_PIP_LOT);
+    });
+  }
+  function removeLevel(row) {
+    if (row.classList.contains('is-removing')) return;
+    row.classList.remove('is-adding');
+    row.classList.add('is-removing');
+    track('flow_level_removed', { levels: Math.max(0, state.tpLadder - 1) });
+    // the fold plays out, then the model shrinks and the survivors renumber
+    setTimeout(() => {
+      row.remove();
       state.tpLadder = state.tpLadder > 2 ? state.tpLadder - 1 : 0;
       state.tpOn = true;
       renderAutoClose();
-      track('flow_level_removed', { levels: state.tpLadder });
-    }));
+    }, 330);
   }
 
   document.querySelectorAll('[data-clear]').forEach(b => b.addEventListener('click', e => {
