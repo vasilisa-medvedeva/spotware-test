@@ -446,6 +446,15 @@
     color: var(--text-on-inverse);
     display: flex; align-items: center; justify-content: center;
   }
+  /* …and the sheet's own Done holds the floor, so the body scrolls between
+     two fixed ends. (In the dock — keyboard up — this doesn't apply.) */
+  .modal .m-done { position: sticky; bottom: 0; z-index: 2; }
+  .modal .m-done::before {          /* the sheet's colour, so content passes behind */
+    content: "";
+    position: absolute; left: -16px; right: -16px; top: -20px; bottom: -24px;
+    background: var(--surface-page);
+    z-index: -1;
+  }
 
   /* content of a modal settles in a beat after the sheet itself */
   .modal .m-fade { transition: opacity 240ms ease 120ms; }
@@ -1552,7 +1561,7 @@
     $('mTpEur').textContent = kbTarget === 'tp' ? '+€' + kbStr : (state.tpOn ? '+' + fmtEur(tp) : 'Not set');
     $('mTpSub').textContent = state.tpOn ? tpP + ' pips above price' : 'Tap to set';
     renderLadder();
-    if (openSheet === 'mAutoclose') sheetFit();
+    if (openSheet === 'mAutoclose') sheetFitSoon();
   }
 
   /* ---- the ladder itself: rows in the sheet, estimate under the title ----
@@ -1651,6 +1660,14 @@
     const natural = el.offsetHeight;
     el.style.height = '';
     el.style.setProperty('--peek', Math.max(0, 870 - natural) + 'px');
+  }
+  /* Rows that are still growing measure short, so the sheet would rest too
+     low. Fit now for the immediate move, then re-fit across the whole
+     entrance (320ms transition behind up to 210ms of stagger). */
+  function sheetFitSoon(id) {
+    sheetFit(id);
+    (sheetFitSoon._t || []).forEach(clearTimeout);
+    sheetFitSoon._t = [200, 420, 620].map(ms => setTimeout(() => sheetFit(id), ms));
   }
   function sheetClose(revert) {
     if (!openSheet) return;
