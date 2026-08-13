@@ -974,6 +974,18 @@
     opacity: .9;
   }
 
+  /* ================= dead-tap hints (as in a Figma prototype) =================
+     A tap on anything that isn't tappable flashes everything that is: the
+     same blue breath Figma gives a missed hotspot. The ring hugs each
+     element's own radius via box-shadow. */
+  @keyframes hintPulse {
+    0%   { box-shadow: 0 0 0 0 rgba(13, 153, 255, 0); }
+    25%  { box-shadow: 0 0 0 3px rgba(13, 153, 255, .55); }
+    60%  { box-shadow: 0 0 0 3px rgba(13, 153, 255, .55); }
+    100% { box-shadow: 0 0 0 7px rgba(13, 153, 255, 0); }
+  }
+  .hint-flash { animation: hintPulse 750ms ease-out; }
+
   /* ================= demo film cursor (as in the Plata deck) ================= */
   body.is-demo #screen { pointer-events: none; }
   /* Position and swell live on SEPARATE elements on purpose. The standalone
@@ -2409,6 +2421,40 @@
     else if (e.key === '.' || e.key === ',') { e.preventDefault(); numKey('.'); }
     else if (e.key === 'Backspace') { e.preventDefault(); numKey('del'); }
     else if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); kbClose(); }
+  });
+
+  /* ===================== dead-tap hints =====================
+     A tap that lands on nothing tappable flashes every live control in the
+     current layer — the open sheet, Positions, or the order screen — the
+     way a Figma prototype answers a missed hotspot. */
+  const HINT_SEL = 'button, input, .slider, .field-amount, .comment-field';
+
+  function flashHints() {
+    let scope = openSheet ? $(openSheet)
+              : positions.classList.contains('is-live') ? positions
+              : order;
+    const els = [...scope.querySelectorAll(HINT_SEL), ...$('doneDock').querySelectorAll('.m-done')];
+    const sTop = 0, sBottom = 932;
+    const s = screenEl.getBoundingClientRect();
+    els.forEach(el => {
+      if (el.closest('.kb') || el.closest('[hidden]')) return;   // 30 flashing keys is noise
+      if (el.classList.contains('is-folded') || el.classList.contains('is-disabled')) return;
+      const r = el.getBoundingClientRect();
+      if (r.width < 6 || r.height < 6) return;
+      const top = r.top - s.top, bottom = r.bottom - s.top;
+      if (bottom < sTop || top > sBottom) return;                // off-screen — don't point at it
+      el.classList.remove('hint-flash');
+      void el.offsetWidth;
+      el.classList.add('hint-flash');
+      setTimeout(() => el.classList.remove('hint-flash'), 800);
+    });
+  }
+
+  screenEl.addEventListener('click', e => {
+    // anything with a job of its own doesn't count as a missed tap
+    if (e.target.closest(HINT_SEL + ', .dimmer, .kb, .grabber, .demo-cursor')) return;
+    flashHints();
+    track('flow_dead_tap');
   });
 
   /* ===================== funnel: the first real touch ===================== */
