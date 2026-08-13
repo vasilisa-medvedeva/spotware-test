@@ -447,14 +447,16 @@
     display: flex; align-items: center; justify-content: center;
   }
   /* …and the sheet's own Done holds the floor, so the body scrolls between
-     two fixed ends. (In the dock — keyboard up — this doesn't apply.) */
-  .modal .m-done { position: sticky; bottom: 0; z-index: 2; }
-  .modal .m-done::before {          /* the sheet's colour, so content passes behind */
-    content: "";
-    position: absolute; left: -16px; right: -16px; top: -20px; bottom: -24px;
+     two fixed ends. The backdrop lives on this wrapper, not on the button:
+     sticky makes a stacking context, inside which a z-index:-1 pseudo paints
+     over the element's own background — the black pill went pale that way. */
+  .m-foot {
+    position: sticky; bottom: 0; z-index: 2;
+    margin: 0 -16px -24px;          /* bleed to the sheet's edges, swallow its padding */
+    padding: 16px 16px 24px;
     background: var(--surface-page);
-    z-index: -1;
   }
+  .m-foot:empty { display: none; }  /* while Done is docked above the keyboard */
 
   /* content of a modal settles in a beat after the sheet itself */
   .modal .m-fade { transition: opacity 240ms ease 120ms; }
@@ -943,7 +945,7 @@
     width: 0; height: 0;
     pointer-events: none;
   }
-  .demo-cursor { z-index: 99; transition: transform 560ms cubic-bezier(0.4, 0, 0.2, 1); }
+  .demo-cursor { z-index: 99; transition: transform 380ms cubic-bezier(0.4, 0, 0.2, 1); }
   .demo-ring   { z-index: 98; }
   .demo-cursor i, .demo-ring i {
     position: absolute; left: -17px; top: -17px;
@@ -1309,7 +1311,7 @@
         </button>
       </div>
     </div>
-    <button class="m-done t-button" id="acDone">Done</button>
+    <div class="m-foot"><button class="m-done t-button" id="acDone">Done</button></div>
   </div>
 
   <!-- Market range -->
@@ -1347,7 +1349,7 @@
         <button data-pips="10"><span class="t-body-em" data-eur>€5.45</span><span class="sub t-micro-r">10.0 pips</span></button>
       </div>
     </div>
-    <button class="m-done t-button" id="rangeDone">Done</button>
+    <div class="m-foot"><button class="m-done t-button" id="rangeDone">Done</button></div>
   </div>
 
   <!-- Comment -->
@@ -1366,7 +1368,7 @@
         <input id="commentInput" type="text" placeholder="Add a note" autocomplete="off" inputmode="none">
       </div>
     </div>
-    <button class="m-done t-button" id="commentDone">Done</button>
+    <div class="m-foot"><button class="m-done t-button" id="commentDone">Done</button></div>
   </div>
 
   <!-- Close positions: their screen, our way — rows instead of criteria,
@@ -1383,7 +1385,7 @@
     <div class="m-body m-fade">
       <div class="close-list" id="closeList"></div>
     </div>
-    <button class="m-done t-button" id="closeConfirm">Close all</button>
+    <div class="m-foot"><button class="m-done t-button" id="closeConfirm">Close all</button></div>
   </div>
 
   <!-- Done's perch above the keyboard: static ground for the pinned button -->
@@ -1513,16 +1515,24 @@
 
   // steppers: ±0.01, accelerating under a held finger
   function stepper(btn, dir) {
-    let timer = null, pace = 160, run = () => {
+    let timer = null, pace = 160, byPointer = false;
+    const run = () => {
       setLots(state.lots + dir * 0.01, false);
       pace = Math.max(40, pace - 12);
       timer = setTimeout(run, pace);
     };
-    btn.addEventListener('pointerdown', e => { btn.setPointerCapture(e.pointerId); pace = 160; run(); });
+    btn.addEventListener('pointerdown', e => { byPointer = true; btn.setPointerCapture(e.pointerId); pace = 160; run(); });
     ['pointerup', 'pointercancel'].forEach(ev => btn.addEventListener(ev, () => {
       clearTimeout(timer); timer = null;
       track('flow_volume', { via: 'stepper', lots: state.lots });
     }));
+    /* A scripted .click() dispatches no pointer events, so the film pressed
+       this button and nothing moved. One click = one step. */
+    btn.addEventListener('click', () => {
+      if (byPointer) { byPointer = false; return; }
+      setLots(state.lots + dir * 0.01, true);
+      track('flow_volume', { via: 'stepper', lots: state.lots });
+    });
   }
   stepper($('stepMinus'), -1);
   stepper($('stepPlus'), +1);
@@ -2206,7 +2216,7 @@
       const done = $('doneDock').querySelector('.m-done');
       flipDone(done, () => {                                   // Done glides home, no teleport
         m.classList.remove('is-full');
-        if (done) m.appendChild(done);
+        if (done) m.querySelector('.m-foot').appendChild(done);
       });
     });
     $('slField').classList.remove('is-focus');
@@ -2332,37 +2342,37 @@
        6 · Manage    — a group opens, a position closes, the numbers recount */
     const FILM = [
       // 1 · Direction
-      { sel: '#optSell',                            wait: 1000 },
-      { sel: '#optBuy',                             wait: 900 },
+      { sel: '#optSell',                            wait: 650 },
+      { sel: '#optBuy',                             wait: 585 },
       // 2 · Size
-      { sel: '.presets button[data-pct="50"]',      wait: 1100 },
-      { sel: '#stepPlus',                           wait: 260 },
-      { sel: '#stepPlus',                           wait: 900 },
+      { sel: '.presets button[data-pct="50"]',      wait: 715 },
+      { sel: '#stepPlus',                           wait: 180 },
+      { sel: '#stepPlus',                           wait: 585 },
       // 3 · Risk
-      { sel: '#acBlock',                            wait: 900 },
-      { sel: '#slField',                            wait: 900 },   // the keyboard rises
-      { sel: '#kbNum [data-k="2"]',                 wait: 280 },
-      { sel: '#kbNum [data-k="5"]',                 wait: 900 },   // −€25, pips recount
-      { sel: '#swTrailing',                         wait: 800 },
-      { sel: '#addLevel',                           wait: 900 },   // ladder unfolds
-      { sel: '#addLevel',                           wait: 1000 },
-      { sel: '.m-done',                             wait: 1000 },  // Done, wherever it perches
+      { sel: '#acBlock',                            wait: 585 },
+      { sel: '#slField',                            wait: 585 },   // the keyboard rises
+      { sel: '#kbNum [data-k="2"]',                 wait: 182 },
+      { sel: '#kbNum [data-k="5"]',                 wait: 585 },   // −€25, pips recount
+      { sel: '#swTrailing',                         wait: 520 },
+      { sel: '#addLevel',                           wait: 585 },   // ladder unfolds
+      { sel: '#addLevel',                           wait: 650 },
+      { sel: '.m-done',                             wait: 650 },  // Done, wherever it perches
       // 4 · Detail
-      { sel: '#rowRange',                           wait: 900 },
-      { sel: '#rangePlus',                          wait: 280 },
-      { sel: '#rangePlus',                          wait: 800 },
-      { sel: '#rangeDone',                          wait: 900 },
+      { sel: '#rowRange',                           wait: 585 },
+      { sel: '#rangePlus',                          wait: 182 },
+      { sel: '#rangePlus',                          wait: 520 },
+      { sel: '#rangeDone',                          wait: 585 },
       // 5 · Send
-      { sel: '#placeBtn',                           wait: 4400 },  // spinner, ride, toast
+      { sel: '#placeBtn',                           wait: 2860 },  // spinner, ride, toast
       // 6 · Manage
-      { sel: '[data-group="GERMANY 40|buy"]',       wait: 1000 },  // the group opens
-      { sel: '[data-children="GERMANY 40|buy"] .pos-child:nth-child(2) [data-close]', wait: 1800 },
+      { sel: '[data-group="GERMANY 40|buy"]',       wait: 650 },  // the group opens
+      { sel: '[data-children="GERMANY 40|buy"] .pos-child:nth-child(2) [data-close]', wait: 1170 },
       // 7 · Close out — the sheet asks which, and the button counts the cost
-      { sel: '#closeAllBtn',                        wait: 1100 },
-      { sel: '#closeList .crow:nth-child(1)',       wait: 700 },   // one put back
-      { sel: '#closeList .crow:nth-child(2)',       wait: 900 },   // and another
-      { sel: '#closeConfirm',                       wait: 2200 },
-      { sel: '#fabNew',                             wait: 1400 },
+      { sel: '#closeAllBtn',                        wait: 715 },
+      { sel: '#closeList .crow:nth-child(1)',       wait: 455 },   // one put back
+      { sel: '#closeList .crow:nth-child(2)',       wait: 585 },   // and another
+      { sel: '#closeConfirm',                       wait: 1430 },
+      { sel: '#fabNew',                             wait: 910 },
     ];
 
     const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -2384,7 +2394,7 @@
     function reach(el) {
       const p = pointOf(el);
       cursor.style.transform = 'translate3d(' + p.x + 'px,' + p.y + 'px,0)';
-      return sleep(560);
+      return sleep(380);
     }
     /* the touch: the dot swells, a ring is left at the point, and the cursor
        stays put until the press has landed — nothing slides mid-tap */
@@ -2406,10 +2416,10 @@
       cursor.classList.add('is-down');
       ringAt(pointOf(el));
       el.classList.add('is-pressed');
-      await sleep(180);
+      await sleep(120);
       el.classList.remove('is-pressed');
       el.click();
-      await sleep(200);            // the swell relaxes, the dot does not move
+      await sleep(140);            // the swell relaxes, the dot does not move
       cursor.classList.remove('is-down');
     }
     async function rewind() {
@@ -2427,12 +2437,12 @@
       positions.classList.remove('is-live');
       order.classList.remove('is-away');
       seedBook(); renderBook();          // the film starts from the same book every lap
-      await sleep(900);
+      await sleep(650);
       cursor.classList.remove('is-away');
     }
     (async function play() {
       const once = matchMedia('(prefers-reduced-motion: reduce)').matches;
-      await sleep(1200);
+      await sleep(800);
       do {
         for (const beat of FILM) {
           await awake();
@@ -2440,7 +2450,7 @@
           await sleep(beat.wait);
         }
         if (once) break;
-        await sleep(900);
+        await sleep(600);
         await rewind();
       } while (true);
     })();
