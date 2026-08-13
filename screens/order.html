@@ -1677,7 +1677,7 @@
     state.tpLadder = state.tpLadder === 0 ? 2 : Math.min(LADDER_MAX, state.tpLadder + 1);
     state.tpOn = true;
     renderAutoClose();
-    track('flow_addlevel', { levels: state.tpLadder });
+    track('flow_level_added', { levels: state.tpLadder });
   });
 
   /* ===================== modal sheets ===================== */
@@ -1723,6 +1723,8 @@
   function sheetClose(revert) {
     if (!openSheet) return;
     kbClose();
+    // opened − done − cancel = the ones abandoned some other way
+    if (revert) track('flow_sheet_cancel', { sheet: openSheet.slice(1).toLowerCase() });
     const el = $(openSheet);
     if (revert) { Object.assign(state, snapshot); syncControls(); }
     el.classList.add('is-leaving');
@@ -1746,7 +1748,10 @@
   }));
 
   $('acBlock').addEventListener('click', () => sheetOpen('mAutoclose'));
-  $('acDone').addEventListener('click', () => { track('flow_autoclose_done', { sl: state.slOn, tp: state.tpOn, trailing: state.trailing }); sheetClose(false); });
+  $('acDone').addEventListener('click', () => { track('flow_sheet_done', { sheet: 'autoclose', sl: state.slOn, tp: state.tpOn,
+      trailing: state.trailing, levels: state.tpLadder,
+      /* the case's own question: was the proposed 20/40 kept as offered? */
+      accepted: state.slPips === 20 && state.tpPips === 40 && state.tpLadder === 0 }); sheetClose(false); });
 
   /* ---- market range ---- */
   const RANGE_MIN = 0.5, RANGE_MAX = 20;
@@ -1777,7 +1782,7 @@
     state.rangePips = Math.round(Math.max(RANGE_MIN, Math.min(RANGE_MAX, state.rangePips + dir * 0.1)) * 10) / 10;
     renderRange();
   }
-  $('rangeDone').addEventListener('click', () => { track('flow_range_done', { auto: state.rangeAuto, pips: state.rangePips }); sheetClose(false); });
+  $('rangeDone').addEventListener('click', () => { track('flow_sheet_done', { sheet: 'range', auto: state.rangeAuto, pips: state.rangePips }); sheetClose(false); });
 
   /* ---- comment ---- */
   function renderCommentRow() {
@@ -1787,7 +1792,7 @@
   $('rowComment').addEventListener('click', () => { $('commentInput').value = state.comment; sheetOpen('mComment'); });
   $('commentField').addEventListener('click', () => kbOpen('comment'));
   $('commentInput').addEventListener('input', e => { state.comment = e.target.value; });
-  $('commentDone').addEventListener('click', () => { track('flow_comment_done', { has_note: !!state.comment.trim() }); sheetClose(false); });
+  $('commentDone').addEventListener('click', () => { track('flow_sheet_done', { sheet: 'comment', has_note: !!state.comment.trim() }); sheetClose(false); });
 
   /* ===================== share ===================== */
   $('shareBtn').addEventListener('click', () => track('flow_share'));
@@ -1801,7 +1806,7 @@
   let toastTimer = null;
 
   $('placeBtn').addEventListener('click', () => {
-    track('flow_place', { side: state.side, lots: state.lots, sl: state.slOn, tp: state.tpOn });
+    track('flow_place', { side: state.side, lots: state.lots, sl: state.slOn, tp: state.tpOn, levels: state.tpLadder });
     const b = $('placeBtn');
     b.classList.add('is-sending');
 
@@ -1812,7 +1817,7 @@
       order.classList.add('is-away');
       // the toast lands once the new screen is settled, not on top of the ride
       setTimeout(() => showToast('GBPJPY order filled', true), 420);
-      track('flow_positions');
+      track('flow_order_filled');
     }, 1400);
   });
 
@@ -2065,7 +2070,7 @@
       closeSel.has(id) ? closeSel.delete(id) : closeSel.add(id);
       b.classList.toggle('is-sel', closeSel.has(id));
       renderCloseBtn();
-      track('flow_closeall_toggle', { selected: closeSel.size });
+      track('flow_close_pick', { selected: closeSel.size });
     }));
     renderCloseBtn();
   }
@@ -2085,7 +2090,6 @@
     closeSel = new Set(closeRows().map(r => r.id));   // everything, by default
     renderCloseList();
     sheetOpen('mCloseAll');
-    track('flow_closeall_open', { positions: closeSel.size });
   });
 
   $('closeConfirm').addEventListener('click', () => {
@@ -2102,7 +2106,7 @@
     sheetClose(false);
     showToast(all ? 'All positions closed · ' + signEur(sum)
                   : picked.length + ' positions closed · ' + signEur(sum), false);
-    track('flow_closeall_done', { positions: picked.length, pl: Math.round(sum * 100) / 100, all: all });
+    track('flow_sheet_done', { sheet: 'closeall', positions: picked.length, pl: Math.round(sum * 100) / 100, all: all });
   });
 
   /* New order brings the sheet back up over Positions */
