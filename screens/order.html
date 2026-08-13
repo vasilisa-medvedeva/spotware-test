@@ -454,7 +454,18 @@
     background: var(--surface-card);
     border: 1px solid var(--neutral-300);
     display: flex; align-items: center; gap: 12px;
-    transition: border-color 200ms ease;
+    transition: border-color 200ms ease, height 320ms var(--spring),
+                padding 320ms var(--spring), margin 320ms var(--spring),
+                opacity 200ms ease;
+    overflow: hidden;
+  }
+  /* the single field folds away when the ladder takes over */
+  .field-amount.is-folded {
+    height: 0; padding-top: 0; padding-bottom: 0;
+    margin-bottom: -8px;               /* swallows its slot in the gap-8 stack */
+    opacity: 0;
+    border-color: transparent;
+    pointer-events: none;
   }
   /* focus wears the field's own meaning: loss-orange on Stop loss,
      profit-green on Take profit — the section badges' colors */
@@ -498,13 +509,26 @@
     border-radius: var(--r-surface); background: var(--surface-card);
     display: flex; align-items: center; justify-content: center; gap: 8px;
     color: var(--action-buy);   /* the design keeps this green on both sides */
-    transition: opacity 90ms ease-out;
+    overflow: hidden;
+    transition: opacity 200ms ease, height 320ms var(--spring), margin 320ms var(--spring);
   }
   .add-level svg path { stroke: currentColor; }
+  /* five levels is the ceiling — the button bows out */
+  .add-level.is-folded {
+    height: 0; margin-bottom: -8px;
+    opacity: 0;
+    pointer-events: none;
+  }
 
   /* ---- the take-profit ladder (Levels=Ladder variant) ---- */
   .m-sechead .m-titles { display: flex; flex-direction: column; gap: 2px; }
-  .m-sechead .m-titles [hidden] { display: none; }
+  /* the estimate line unfolds with the ladder instead of popping */
+  .tp-est {
+    display: block;
+    max-height: 19px; overflow: hidden;
+    transition: max-height 320ms var(--spring), opacity 200ms ease;
+  }
+  .tp-est.is-hid { max-height: 0; opacity: 0; }
   .tp-levels { display: flex; flex-direction: column; width: 100%; }
   .tp-levels[hidden] { display: none; }
   .tp-level {
@@ -517,17 +541,12 @@
                 padding 320ms var(--spring), opacity 200ms ease;
   }
   .tp-level:last-child { margin-bottom: 0; }
-  /* only a genuinely new row plays the entrance */
-  .tp-level.is-adding { animation: levelIn 420ms var(--spring) backwards; }
-  /* a removed one folds shut before it leaves the DOM */
-  .tp-level.is-removing {
+  /* a new row GROWS open and a removed one folds shut — height, not a fade,
+     so everything below rides the move instead of jumping a frame */
+  .tp-level.is-removing, .tp-level.is-entering {
     height: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0;
     opacity: 0;
     pointer-events: none;
-  }
-  @keyframes levelIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to   { opacity: 1; transform: none; }
   }
   .tp-level .col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   .tp-level .col .sub { color: var(--text-secondary); }
@@ -698,6 +717,7 @@
   .pos-children > .inner { overflow: hidden; min-height: 0; }
   .pos-child {
     height: 56px; padding: 0 16px 0 68px;
+    background: var(--surface-control);      /* the children sit a shade deeper (374:2541) */
     display: flex; align-items: center; gap: 12px;
     opacity: 0; transform: translateY(-6px);
     transition: opacity 240ms ease, transform 320ms var(--spring);
@@ -707,6 +727,8 @@
   .pos-child .r { display: flex; flex-direction: column; gap: 2px; align-items: flex-end; text-align: right; }
   .pos-child .pl { font-variant-numeric: tabular-nums; }
   .pos-child .guard { color: var(--text-secondary); }
+  .pos-child .guard.naked, .pos-row .guard.naked { color: var(--text-primary); font-weight: 500; }
+  .pos-child .remove { background: var(--surface-control); }
   .pos-child .row-action { flex: none; width: 40px; height: 32px; }
   .pos-child .remove {
     width: 32px; height: 32px; margin-left: 8px;
@@ -1116,60 +1138,8 @@
         <div class="p-item"><span class="t-button">History</span></div>
       </div>
 
-      <div class="pos-list">
-        <div class="pos-row" id="rowAudusd">
-          <div class="lead">
-            <span class="badge badge--win">
-              <svg class="trend" width="22" height="14" viewBox="0 0 22.5 13.5">
-                <path d="M1.25 12.25L7.75 6.25L12.3 10.48L21.25 1.25"/><path d="M14.75 1.25H21.25V7.25"/>
-              </svg>
-            </span>
-            <span class="l">
-              <span class="t-body-em">AUDUSD</span>
-              <span class="sub t-micro-r">0.33 lots</span>
-            </span>
-          </div>
-          <span class="r">
-            <span class="pl t-body-em">−€2.11</span>
-            <span class="guard t-micro-r">Stop −€61</span>
-          </span>
-          <span class="row-action">
-            <button class="remove" id="rmAudusd" aria-label="Close AUDUSD">
-              <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8" stroke="#232326" stroke-width="1.8" stroke-linecap="round"/></svg>
-            </button>
-          </span>
-        </div>
-
-        <!-- the order just placed joins its symbol's group -->
-        <button class="pos-row pos-group is-new" id="newRow">
-          <div class="lead">
-            <span class="badge badge--loss" id="newBadge">
-              <svg class="trend" width="22" height="14" viewBox="0 0 22.5 13.5" id="newTrend">
-                <g class="down"><path d="M1.25 1.25L7.75 7.25L12.3 3.02L21.25 12.25"/><path d="M14.75 12.25H21.25V6.25"/></g>
-                <g class="up" style="opacity:0"><path d="M1.25 12.25L7.75 6.25L12.3 10.48L21.25 1.25"/><path d="M14.75 1.25H21.25V7.25"/></g>
-              </svg>
-            </span>
-            <span class="l">
-              <span class="sym-row">
-                <span class="t-body-em">GBPJPY</span>
-                <svg class="disclosure" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 8l5 5 5-5" stroke="#232326" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
-              </span>
-              <span class="sub t-micro-r" id="newSub">3 positions · 0.12 lots</span>
-            </span>
-          </div>
-          <span class="r">
-            <span class="pl t-body-em" id="newPl">+€6.91</span>
-            <span class="guard t-micro-r" id="newGuard">Stop −€13.07</span>
-          </span>
-          <span class="row-action">
-            <span class="remove">
-              <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8" stroke="#232326" stroke-width="1.8" stroke-linecap="round"/></svg>
-            </span>
-          </span>
-        </button>
-        <!-- the three positions behind the group, filled in from script -->
-        <div class="pos-children" id="newChildren"><div class="inner"></div></div>
-      </div>
+      <!-- the whole list draws itself from the book of positions -->
+      <div class="pos-list" id="posList"></div>
 
       <div class="pos-summary" id="posSummary">
         <div class="head">
@@ -1271,7 +1241,7 @@
         </span>
         <span class="m-titles">
           <span class="t-title">Take profit</span>
-          <span class="t-caption" id="tpEst" hidden>Estimated profit: up to €37.03</span>
+          <span class="t-caption tp-est is-hid" id="tpEst">Estimated profit: up to €37.03</span>
         </span>
       </div>
       <div style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
@@ -1571,19 +1541,24 @@
      folds shut before it leaves — the rows below ride up on its collapse. */
   function renderLadder() {
     const ladder = state.tpLadder >= 2;
-    $('tpField').hidden = ladder;
-    $('tpLevels').hidden = !ladder;
-    $('tpEst').hidden = !ladder;
     const wrap = $('tpLevels');
-    if (!ladder) { wrap.innerHTML = ''; return; }
+    // the single field folds, the estimate unfolds — nothing pops
+    $('tpField').classList.toggle('is-folded', ladder);
+    $('tpEst').classList.toggle('is-hid', !ladder);
+    wrap.hidden = !ladder;
+    if (!ladder) { wrap.innerHTML = ''; $('addLevel').classList.remove('is-folded'); return; }
     $('tpEst').textContent = 'Estimated profit: up to ' + fmtEur(ladderTotal());
     const want = ladderLevels();
+    // at the ceiling the Add button bows out of the stack
+    $('addLevel').classList.toggle('is-folded', want.length >= LADDER_MAX);
     let rows = [...wrap.querySelectorAll('.tp-level:not(.is-removing)')];
-    // newcomers arrive at the end, staggered if several land at once
+    // newcomers grow open at the end, staggered if several land at once
     for (let i = rows.length; i < want.length; i++) {
       const row = document.createElement('div');
-      row.className = 'tp-level is-adding';
-      row.style.animationDelay = ((i - rows.length) * 60) + 'ms';
+      row.className = 'tp-level is-entering';
+      const delay = (i - rows.length) * 70;
+      requestAnimationFrame(() => requestAnimationFrame(() =>
+        setTimeout(() => row.classList.remove('is-entering'), delay)));
       row.innerHTML =
         '<span class="col"><span class="val-pips t-body"></span><span class="sub t-micro-r">pips</span></span>'
         + '<span class="col"><span class="val-qty t-body"></span><span class="sub t-micro-r">quantity</span></span>'
@@ -1604,7 +1579,7 @@
   }
   function removeLevel(row) {
     if (row.classList.contains('is-removing')) return;
-    row.classList.remove('is-adding');
+    row.classList.remove('is-entering');
     row.classList.add('is-removing');
     track('flow_level_removed', { levels: Math.max(0, state.tpLadder - 1) });
     // the fold plays out, then the model shrinks and the survivors renumber
@@ -1744,7 +1719,7 @@
 
     setTimeout(() => {                       // the round trip to the server
       b.classList.remove('is-sending');
-      fillPositions();
+      placeIntoBook();
       positions.classList.add('is-live');
       order.classList.add('is-away');
       // the toast lands once the new screen is settled, not on top of the ride
@@ -1763,64 +1738,134 @@
     toastTimer = setTimeout(() => toast.classList.remove('is-live'), 3400);
   }
 
-  /* The list tells the truth about the order that was just placed. The new
-     position joins the GBPJPY group, which already holds two small ones —
-     the group row is a sum, the children are the three of them, and every
-     ✕ closes its position for real: the row folds, the toast reports, the
-     account recounts. */
-  const AUDUSD_PL = -2.11;
-  let posKids = [], posAudusd = true;
-  const signEur = n => (n >= 0 ? '+' : '−') + fmtEur(Math.abs(n));
+  /* ===================== the book of positions =====================
+     GERMANY 40 came with history — three buys and a sell — and AUDUSD
+     with its one; everything after that is whatever the user actually
+     places. Two or more of the same symbol AND side fold into a group
+     (the sell stays its own row). Every ✕ closes for real: the row
+     folds, the toast reports, the account recounts. */
+  const SEED_BOOK = [
+    { symbol: 'AUDUSD',     side: 'buy',  lots: 0.33, pl: -2.11, stop: 61 },
+    { symbol: 'GERMANY 40', side: 'buy',  lots: 0.05, pl: 1.24,  stop: 4.20 },
+    { symbol: 'GERMANY 40', side: 'buy',  lots: 0.03, pl: 0.58,  stop: null },
+    { symbol: 'GERMANY 40', side: 'buy',  lots: 0.02, pl: -0.31, stop: 1.75 },
+    { symbol: 'GERMANY 40', side: 'sell', lots: 0.04, pl: 0.87,  stop: 3.10 },
+  ];
+  let book = [], bookId = 0;
+  const openGroups = new Set();
+  function seedBook() {
+    book = SEED_BOOK.map(p => ({ ...p, id: ++bookId }));
+    openGroups.clear();
+  }
+  seedBook();
 
-  function fillPositions() {
-    const sell = state.side === 'sell';
-    const stopEur = l => l * state.slPips * EUR_PER_PIP_LOT;
-    posKids = [
-      { lots: state.lots, pl: 65.3 * state.lots, stop: state.slOn ? stopEur(state.lots) : null },
-      { lots: 0.01, pl: 0.27, stop: stopEur(0.01) },
-      { lots: 0.01, pl: 0.11, stop: stopEur(0.01) },
-    ];
-    posAudusd = true;
-    ['rowAudusd', 'newRow', 'newChildren'].forEach(id => $(id).classList.remove('is-closing'));
-    $('newBadge').className = 'badge ' + (sell ? 'badge--loss' : 'badge--win');
-    $('newTrend').querySelector('.up').style.opacity = sell ? 0 : 1;
-    $('newTrend').querySelector('.down').style.opacity = sell ? 1 : 0;
-    renderKids();
-    renderGroupRow();
+  const signEur = n => (n >= 0 ? '+' : '−') + fmtEur(Math.abs(n));
+  const eurTrim = n => ('€' + (Math.round(n * 100) / 100).toFixed(2)).replace(/\.00$/, '');
+  const CLOSE_X = '<svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8" stroke="#232326" stroke-width="1.8" stroke-linecap="round"/></svg>';
+  const trendSvg = side => side === 'sell'
+    ? '<svg class="trend" width="22" height="14" viewBox="0 0 22.5 13.5"><path d="M1.25 1.25L7.75 7.25L12.3 3.02L21.25 12.25"/><path d="M14.75 12.25H21.25V6.25"/></svg>'
+    : '<svg class="trend" width="22" height="14" viewBox="0 0 22.5 13.5"><path d="M1.25 12.25L7.75 6.25L12.3 10.48L21.25 1.25"/><path d="M14.75 1.25H21.25V7.25"/></svg>';
+
+  /* same symbol, same side, in order of first appearance */
+  function buckets() {
+    const map = new Map();
+    book.forEach(p => {
+      const key = p.symbol + '|' + p.side;
+      if (!map.has(key)) map.set(key, { key, symbol: p.symbol, side: p.side, kids: [] });
+      map.get(key).kids.push(p);
+    });
+    return [...map.values()];
+  }
+
+  function guardHtml(stopSum, naked, n) {
+    if (naked) return '<span class="guard t-micro-r naked">' + (n > 1 ? naked + ' of ' + n + ' no stop' : 'No stop') + '</span>';
+    return '<span class="guard t-micro-r">Stop −' + eurTrim(stopSum) + '</span>';
+  }
+
+  function renderBook(newIds) {
+    newIds = newIds || [];
+    const host = $('posList');
+    host.innerHTML = buckets().map(b => {
+      const lots = Math.round(b.kids.reduce((s, k) => s + k.lots, 0) * 100) / 100;
+      const pl = b.kids.reduce((s, k) => s + k.pl, 0);
+      const naked = b.kids.filter(k => k.stop === null).length;
+      const stopSum = b.kids.reduce((s, k) => s + (k.stop || 0), 0);
+      const fresh = b.kids.some(k => newIds.includes(k.id)) ? ' is-new' : '';
+      const badge = '<span class="badge ' + (b.side === 'sell' ? 'badge--loss' : 'badge--win') + '">' + trendSvg(b.side) + '</span>';
+      const action = id => '<span class="row-action"><button class="remove" data-close="' + id + '" aria-label="Close">' + CLOSE_X + '</button></span>';
+
+      if (b.kids.length === 1) {
+        const p = b.kids[0];
+        return '<div class="pos-row' + fresh + '" data-bucket="' + b.key + '">'
+          + '<div class="lead">' + badge
+          + '<span class="l"><span class="t-body-em">' + b.symbol + '</span>'
+          + '<span class="sub t-micro-r">' + fmt2(p.lots) + ' lots</span></span></div>'
+          + '<span class="r"><span class="pl t-body-em">' + signEur(p.pl) + '</span>'
+          + guardHtml(p.stop || 0, p.stop === null ? 1 : 0, 1) + '</span>'
+          + action(p.id) + '</div>';
+      }
+      const open = openGroups.has(b.key) ? ' is-open' : '';
+      return '<button class="pos-row pos-group' + open + fresh + '" data-group="' + b.key + '">'
+        + '<div class="lead">' + badge
+        + '<span class="l"><span class="sym-row"><span class="t-body-em">' + b.symbol + '</span>'
+        + '<svg class="disclosure" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 8l5 5 5-5" stroke="#232326" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></span>'
+        + '<span class="sub t-micro-r">' + b.kids.length + ' positions · ' + fmt2(lots) + ' lots</span></span></div>'
+        + '<span class="r"><span class="pl t-body-em">' + signEur(pl) + '</span>'
+        + guardHtml(stopSum, naked, b.kids.length) + '</span>'
+        + '<span class="row-action"><span class="remove" data-close-group="' + b.key + '">' + CLOSE_X + '</span></span>'
+        + '</button>'
+        + '<div class="pos-children" data-children="' + b.key + '"><div class="inner">'
+        + b.kids.map((k, i) =>
+            '<div class="pos-child" style="transition-delay:' + (i * 45) + 'ms">'
+            + '<span class="l t-body-em">' + fmt2(k.lots) + ' lots</span>'
+            + '<span class="r"><span class="pl t-body-em">' + signEur(k.pl) + '</span>'
+            + guardHtml(k.stop || 0, k.stop === null ? 1 : 0, 1) + '</span>'
+            + action(k.id) + '</div>').join('')
+        + '</div></div>';
+    }).join('');
+
+    // a group opens onto its positions; its ✕ closes the whole stack
+    host.querySelectorAll('[data-group]').forEach(row => row.addEventListener('click', e => {
+      const key = row.dataset.group;
+      const x = e.target.closest('[data-close-group]');
+      if (x) {
+        const b = buckets().find(b => b.key === key);
+        closeMany(b.kids.map(k => k.id), row, b.symbol + ' closed');
+        return;
+      }
+      openGroups.has(key) ? openGroups.delete(key) : openGroups.add(key);
+      row.classList.toggle('is-open', openGroups.has(key));
+      track('flow_group_toggle', { group: key, open: openGroups.has(key) });
+    }));
+    // every plain ✕ closes its one position
+    host.querySelectorAll('[data-close]').forEach(btn => btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const id = +btn.dataset.close;
+      const p = book.find(p => p.id === id);
+      const el = btn.closest('.pos-child, .pos-row');
+      const bucket = buckets().find(b => b.kids.some(k => k.id === id));
+      const label = bucket.kids.length > 1 ? p.symbol + ' ' + fmt2(p.lots) + ' lots closed' : p.symbol + ' closed';
+      closeMany([id], el, label);
+    }));
     renderPosSummary();
   }
 
-  function renderGroupRow() {
-    const n = posKids.length;
-    const lots = Math.round(posKids.reduce((s, k) => s + k.lots, 0) * 100) / 100;
-    const pl = posKids.reduce((s, k) => s + k.pl, 0);
-    const naked = posKids.filter(k => k.stop === null).length;
-    $('newSub').textContent = n + (n === 1 ? ' position · ' : ' positions · ') + fmt2(lots) + ' lots';
-    $('newPl').textContent = signEur(pl);
-    $('newGuard').textContent = naked
-      ? naked + ' of ' + n + ' no stop'
-      : 'Stop −' + fmtEur(posKids.reduce((s, k) => s + k.stop, 0));
-  }
-
-  function renderKids() {
-    $('newChildren').querySelector('.inner').innerHTML = posKids.map((k, i) =>
-      '<div class="pos-child" style="transition-delay:' + (i * 45) + 'ms">'
-      + '<span class="l t-body">' + fmt2(k.lots) + ' lots</span>'
-      + '<span class="r"><span class="pl t-body-em">' + signEur(k.pl) + '</span>'
-      + '<span class="guard t-micro-r">' + (k.stop === null ? 'No stop' : 'Stop −' + fmtEur(k.stop)) + '</span></span>'
-      + '<span class="row-action"><button class="remove" data-kid="' + i + '" aria-label="Close position">'
-      + '<svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8" stroke="#232326" stroke-width="1.8" stroke-linecap="round"/></svg>'
-      + '</button></span></div>'
-    ).join('');
-    $('newChildren').querySelectorAll('[data-kid]').forEach(b => b.addEventListener('click', e => {
-      e.stopPropagation();
-      closeKid(+b.dataset.kid, b.closest('.pos-child'));
-    }));
+  function closeMany(ids, el, label) {
+    el.classList.add('is-closing');
+    el.style.transitionDelay = '0ms';
+    const kids = el.nextElementSibling;
+    if (kids && kids.classList.contains('pos-children')) kids.classList.add('is-closing');
+    showToast(label, false);
+    track('flow_close_position', { count: ids.length });
+    setTimeout(() => {
+      book = book.filter(p => !ids.includes(p.id));
+      renderBook();
+    }, 340);
   }
 
   function renderPosSummary() {
-    const total = (posAudusd ? AUDUSD_PL : 0) + posKids.reduce((s, k) => s + k.pl, 0);
-    const count = (posAudusd ? 1 : 0) + posKids.length;
+    const total = book.reduce((s, p) => s + p.pl, 0);
+    const count = book.length;
     $('sumPl').textContent = signEur(total) + ' open P&L';
     $('sumPl').className = 'pl-line ' + (total >= 0 ? 'win' : 'loss') + ' t-body-em';
     $('posCount').textContent = $('navCount').textContent = count;
@@ -1830,47 +1875,20 @@
     $('posEmpty').hidden = count !== 0;
   }
 
-  /* ---- the ✕s ---- */
-  $('rmAudusd').addEventListener('click', () => {
-    if (!posAudusd) return;
-    posAudusd = false;
-    $('rowAudusd').classList.add('is-closing');
-    showToast('AUDUSD closed', false);
-    setTimeout(renderPosSummary, 340);
-    track('flow_close_position', { symbol: 'AUDUSD' });
-  });
-  function foldGroup() {
-    $('newRow').classList.add('is-closing');
-    $('newRow').classList.remove('is-open');
-    $('newChildren').classList.add('is-closing');
+  /* a filled order enters the book the way a fill would: at the spread */
+  function placeIntoBook() {
+    const p = {
+      id: ++bookId,
+      symbol: 'GBPJPY',
+      side: state.side,
+      lots: state.lots,
+      pl: -Math.max(0.01, Math.round(state.lots * 55) / 100),
+      stop: state.slOn ? Math.round(state.lots * state.slPips * EUR_PER_PIP_LOT * 100) / 100 : null,
+    };
+    book.push(p);
+    renderBook([p.id]);
+    return p;
   }
-  function closeKid(i, el) {
-    const k = posKids[i];
-    el.classList.add('is-closing');
-    el.style.transitionDelay = '0ms';
-    showToast('GBPJPY ' + fmt2(k.lots) + ' lots closed', false);
-    setTimeout(() => {
-      posKids.splice(i, 1);
-      if (posKids.length) { renderKids(); renderGroupRow(); }
-      else foldGroup();
-      renderPosSummary();
-    }, 340);
-    track('flow_close_position', { symbol: 'GBPJPY', lots: k.lots });
-  }
-
-  /* the group opens onto the positions behind it; its ✕ closes all three */
-  $('newRow').addEventListener('click', e => {
-    if (e.target.closest('.remove')) {
-      posKids = [];
-      foldGroup();
-      showToast('GBPJPY closed', false);
-      setTimeout(renderPosSummary, 340);
-      track('flow_close_position', { symbol: 'GBPJPY', all: true });
-      return;
-    }
-    const open = $('newRow').classList.toggle('is-open');
-    track('flow_group_toggle', { open: open });
-  });
 
   /* ===================== Close positions =====================
      cTrader asks the question as three criteria — Direction ∧ P&L ∧ Symbols —
@@ -1879,13 +1897,12 @@
      costs two taps), a tap puts one back (the cleanup case), and the button
      carries the money it is about to realise. Nothing selected disables it —
      the one honest disable cTrader already had on this screen. */
-  const AUDUSD_STOP = 61;
   let closeSel = new Set();
 
-  const closeRows = () => [
-    ...(posAudusd ? [{ id: 'aud', sym: 'AUDUSD', lots: 0.33, pl: AUDUSD_PL, stop: AUDUSD_STOP }] : []),
-    ...posKids.map((k, i) => ({ id: 'kid' + i, sym: 'GBPJPY', lots: k.lots, pl: k.pl, stop: k.stop })),
-  ];
+  /* the sheet lists the book itself, side and all */
+  const closeRows = () => book.map(p => ({
+    id: String(p.id), sym: p.symbol, side: p.side, lots: p.lots, pl: p.pl, stop: p.stop,
+  }));
 
   function renderCloseList() {
     const rows = closeRows();
@@ -1894,9 +1911,9 @@
       + '<span class="ccheck"><svg width="14" height="11" viewBox="0 0 14 11" fill="none">'
       + '<path d="M1.5 5.5L5 9L12.5 1.5" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'
       + '<span class="cl"><span class="t-body-em">' + r.sym + '</span>'
-      + '<span class="sub t-micro-r">' + fmt2(r.lots) + ' lots</span></span>'
+      + '<span class="sub t-micro-r">' + fmt2(r.lots) + ' lots · ' + (r.side === 'sell' ? 'Sell' : 'Buy') + '</span></span>'
       + '<span class="cr"><span class="t-body-em">' + signEur(r.pl) + '</span>'
-      + '<span class="guard t-micro-r">' + (r.stop === null ? 'No stop' : 'Stop −' + fmtEur(r.stop)) + '</span></span>'
+      + '<span class="guard t-micro-r">' + (r.stop === null ? 'No stop' : 'Stop −' + eurTrim(r.stop)) + '</span></span>'
       + '</button>'
     ).join('');
     $('closeList').querySelectorAll('[data-row]').forEach(b => b.addEventListener('click', () => {
@@ -1933,22 +1950,18 @@
     const sum = picked.reduce((s, r) => s + r.pl, 0);
     const all = picked.length === closeRows().length;
 
-    if (closeSel.has('aud')) { posAudusd = false; $('rowAudusd').classList.add('is-closing'); }
-    // splice from the back so the earlier indices stay valid
-    posKids = posKids.filter((k, i) => !closeSel.has('kid' + i));
-    if (posKids.length) { renderKids(); renderGroupRow(); } else foldGroup();
+    book = book.filter(p => !closeSel.has(String(p.id)));
+    renderBook();
 
     sheetClose(false);
     showToast(all ? 'All positions closed · ' + signEur(sum)
                   : picked.length + ' positions closed · ' + signEur(sum), false);
-    renderPosSummary();
     track('flow_closeall_done', { positions: picked.length, pl: Math.round(sum * 100) / 100, all: all });
   });
 
   /* New order brings the sheet back up over Positions */
   $('fabNew').addEventListener('click', () => {
     toast.classList.remove('is-live');
-    $('newRow').classList.remove('is-open');
     order.classList.remove('is-away');
     setTimeout(() => positions.classList.remove('is-live'), 560);
     track('flow_neworder_again');
@@ -2159,6 +2172,7 @@
   }, true);
 
   /* ===================== boot ===================== */
+  renderBook();
   renderVolume(); renderAutoClose(); renderRange(); renderRangeRow(); renderCommentRow();
 
   /* The order always opens on its top — the chart, the chips, the price.
@@ -2235,6 +2249,7 @@
       toast.classList.remove('is-live');
       positions.classList.remove('is-live');
       order.classList.remove('is-away');
+      seedBook(); renderBook();          // the film starts from the same book every lap
       await sleep(900);
       cursor.classList.remove('is-away');
     }
