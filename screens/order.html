@@ -1902,6 +1902,16 @@
   /* ===================== boot ===================== */
   renderVolume(); renderAutoClose(); renderRange(); renderRangeRow(); renderCommentRow();
 
+  /* The order always opens on its top — the chart, the chips, the price.
+     Browsers restore a scroller's offset on reload (and on back/forward out
+     of the bfcache), so a reload used to land wherever the last visit left
+     the sheet. Say no to all three. */
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  function toTop() { $('osheet').scrollTop = 0; }
+  toTop();
+  addEventListener('load', toTop);          // after images settle the layout
+  addEventListener('pageshow', toTop);      // bfcache restores
+
   /* ===== ?demo=1 — the flow plays itself (the deck's silent film) =====
      Same rig as the Plata build: a cursor walks the order end to end, then
      starts over. ga.js is already mute for demo=1. */
