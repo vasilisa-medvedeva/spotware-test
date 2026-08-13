@@ -248,9 +248,35 @@
 <body>
   <div class="stage">
 
-    <!-- one prototype, opening on the start of the flow.
-         The Demo film block (the flow playing itself, as in the Plata deck)
-         comes back once the prototype is signed off. -->
+    <!-- the flow, played out: the same build tapping itself through a GBPJPY
+         order end to end, so a reviewer sees the whole thing before touching
+         anything -->
+    <section class="film" id="film">
+      <div class="film__row">
+        <header class="proto-label film-label">
+          <h2 class="film-title">Demo</h2>
+          <p>A GBPJPY order, end to end — side, size, auto close, placed, then managed.</p>
+        </header>
+        <div class="phone">
+          <div class="frame">
+            <div class="screen">
+              <iframe src="screens/order.html?demo=1" title="The new order flow, playing itself" aria-hidden="true" tabindex="-1"></iframe>
+              <div class="island"></div>
+            </div>
+          </div>
+          <div class="phone__shield" aria-hidden="true"></div>
+        </div>
+      </div>
+      <a class="film-next" href="#prototype">
+        <span class="film-next__btn" aria-hidden="true">↓</span>
+        <span class="film-next__text">
+          <span class="film-next__eyebrow">Your turn</span>
+          <span class="film-next__line">The prototype below is the same build —<br>that one is yours to tap</span>
+        </span>
+      </a>
+    </section>
+
+    <!-- one prototype, opening on the start of the flow -->
     <section class="proto" id="prototype">
       <header class="proto-label">
         <h2>Try the flow yourself</h2>
@@ -280,13 +306,39 @@
       layout: matchMedia('(max-width: 720px)').matches ? 'mobile' : 'desktop',
     });
 
-    /* ===== the funnel: deck_view → proto_reached → proto_touch =====
-       proto_touch is reported from inside the frame. film_watched and
-       handoff_click return with the Demo block. */
+    /* ===== the hand-off funnel: deck_view → film_watched → proto_reached =====
+       proto_touch, reported from inside the frame, closes it. Without the
+       middle rungs, "nobody tried the prototype" could not be told apart
+       from "nobody ever scrolled far enough to see it". */
+
+    // Did they actually watch the demo? Counts only seconds the block is
+    // genuinely on screen and the tab is in front — never the film's own laps.
+    const filmMarks = [5, 15, 30];
+    let filmOnScreen = false, filmSeconds = 0;
+    new IntersectionObserver(
+      entries => { filmOnScreen = entries[0].isIntersecting; },
+      { threshold: .5 }
+    ).observe(document.getElementById('film'));
+    const filmClock = setInterval(() => {
+      if (!filmOnScreen || document.hidden) return;
+      filmSeconds++;
+      if (filmSeconds >= filmMarks[0]) {
+        track('film_watched', { seconds: filmMarks.shift() });
+        if (!filmMarks.length) clearInterval(filmClock);
+      }
+    }, 1000);
+
+    // The arrow versus the scrollbar — does the hand-off actually get used?
+    let cameByArrow = false;
+    document.querySelector('.film-next').addEventListener('click', () => {
+      cameByArrow = true;
+      track('handoff_click');
+    });
+
     const protoWatch = new IntersectionObserver(entries => {
       if (!entries[0].isIntersecting) return;
       protoWatch.disconnect();
-      track('proto_reached', { via: 'scroll' });
+      track('proto_reached', { via: cameByArrow ? 'arrow' : 'scroll' });
     }, { threshold: .35 });
     protoWatch.observe(document.getElementById('prototype'));
 

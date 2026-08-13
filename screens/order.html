@@ -1571,9 +1571,9 @@
                            : (state.tpOn ? '+' + fmtEur(tp) : '');
     // sheet mirrors the block; a field mid-edit shows the digits as typed
     $('mSlEur').textContent = kbTarget === 'sl' ? '−€' + kbStr : (state.slOn ? '−' + fmtEur(sl) : 'Not set');
-    $('mSlSub').textContent = state.slOn ? slP + ' pips below price' : 'Tap to set';
+    $('mSlSub').textContent = state.slOn ? slP + (slP === 1 ? ' pip' : ' pips') + ' below price' : 'Tap to set';
     $('mTpEur').textContent = kbTarget === 'tp' ? '+€' + kbStr : (state.tpOn ? '+' + fmtEur(tp) : 'Not set');
-    $('mTpSub').textContent = state.tpOn ? tpP + ' pips above price' : 'Tap to set';
+    $('mTpSub').textContent = state.tpOn ? tpP + (tpP === 1 ? ' pip' : ' pips') + ' above price' : 'Tap to set';
     renderLadder();
     if (openSheet === 'mAutoclose') sheetFitSoon();
   }
