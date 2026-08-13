@@ -455,6 +455,9 @@
     margin: 0 -16px -24px;          /* bleed to the sheet's edges, swallow its padding */
     padding: 16px 16px 24px;
     background: var(--surface-page);
+    /* a column, so the button stretches — a bare <button> in a block shrinks
+       to its label, which is how Done became a small pill on the left */
+    display: flex; flex-direction: column;
   }
   .m-foot:empty { display: none; }  /* while Done is docked above the keyboard */
 
@@ -1421,8 +1424,10 @@
   const state = {
     side: 'buy',
     lots: 0.10,
-    slPips: 20,  slOn: true,
-    tpPips: 40,  tpOn: true,
+    /* a fresh order carries no protection yet — the block says so until the
+       trader sets it, and the position it becomes says 'No stop' if they don't */
+    slPips: 0,  slOn: false,
+    tpPips: 0,  tpOn: false,
     trailing: false, breakeven: true,
     rangeAuto: true, rangePips: 5,
     tpLadder: 0,           // 0 = a single take-profit; 2..4 = the level ladder
@@ -1580,18 +1585,20 @@
     const tp = state.lots * state.tpPips * EUR_PER_PIP_LOT;
     const slP = Math.round(state.slPips), tpP = Math.round(state.tpPips);
     const ladder = state.tpLadder >= 2;
-    $('slPips').textContent = state.slOn ? '−' + slP + ' pips' : 'Not set';
-    $('slEur').textContent = state.slOn ? '−' + fmtEur(sl) : '';
+    // a level with no distance yet is not a level — mid-typing counts as unset
+    const slSet = state.slOn && slP > 0, tpSet = state.tpOn && tpP > 0;
+    $('slPips').textContent = slSet ? '−' + slP + ' pips' : 'Not set';
+    $('slEur').textContent = slSet ? '−' + fmtEur(sl) : '';
     // with a ladder, the block half sums it up
     $('tpPips').textContent = ladder ? state.tpLadder + ' levels'
-                            : (state.tpOn ? '+' + tpP + ' pips' : 'Not set');
+                            : (tpSet ? '+' + tpP + ' pips' : 'Not set');
     $('tpEur').textContent = ladder ? '+' + fmtEur(ladderTotal())
-                           : (state.tpOn ? '+' + fmtEur(tp) : '');
+                           : (tpSet ? '+' + fmtEur(tp) : '');
     // sheet mirrors the block; a field mid-edit shows the digits as typed
-    $('mSlEur').textContent = kbTarget === 'sl' ? '−€' + kbStr : (state.slOn ? '−' + fmtEur(sl) : 'Not set');
-    $('mSlSub').textContent = state.slOn ? slP + (slP === 1 ? ' pip' : ' pips') + ' below price' : 'Tap to set';
-    $('mTpEur').textContent = kbTarget === 'tp' ? '+€' + kbStr : (state.tpOn ? '+' + fmtEur(tp) : 'Not set');
-    $('mTpSub').textContent = state.tpOn ? tpP + (tpP === 1 ? ' pip' : ' pips') + ' above price' : 'Tap to set';
+    $('mSlEur').textContent = kbTarget === 'sl' ? '−€' + kbStr : (slSet ? '−' + fmtEur(sl) : 'Not set');
+    $('mSlSub').textContent = slSet ? slP + (slP === 1 ? ' pip' : ' pips') + ' below price' : 'Tap to set';
+    $('mTpEur').textContent = kbTarget === 'tp' ? '+€' + kbStr : (tpSet ? '+' + fmtEur(tp) : 'Not set');
+    $('mTpSub').textContent = tpSet ? tpP + (tpP === 1 ? ' pip' : ' pips') + ' above price' : 'Tap to set';
     renderLadder();
     if (openSheet === 'mAutoclose') sheetFitSoon();
   }
@@ -2168,9 +2175,11 @@
     kbTarget = target;
     kbFresh = true;
     if (target === 'sl' || target === 'tp') {
-      const on = target === 'sl' ? (state.slOn = true) : (state.tpOn = true);
+      // an unset level opens on an empty field, not on a number nobody chose
+      const wasOn = target === 'sl' ? state.slOn : state.tpOn;
+      if (target === 'sl') state.slOn = true; else state.tpOn = true;
       const eur = state.lots * (target === 'sl' ? state.slPips : state.tpPips) * EUR_PER_PIP_LOT;
-      kbStr = String(Math.round(eur * 100) / 100);
+      kbStr = wasOn ? String(Math.round(eur * 100) / 100) : '';
       kbQwerty.classList.remove('is-open');
       kbNum.classList.add('is-open');
     } else {
@@ -2349,10 +2358,13 @@
       { sel: '#stepPlus',                           wait: 180 },
       { sel: '#stepPlus',                           wait: 585 },
       // 3 · Risk
-      { sel: '#acBlock',                            wait: 585 },
-      { sel: '#slField',                            wait: 585 },   // the keyboard rises
+      { sel: '#acBlock',                            wait: 585 },   // both levels: Not set
+      { sel: '#slField',                            wait: 585 },   // the keyboard rises on an empty field
       { sel: '#kbNum [data-k="2"]',                 wait: 182 },
-      { sel: '#kbNum [data-k="5"]',                 wait: 585 },   // −€25, pips recount
+      { sel: '#kbNum [data-k="5"]',                 wait: 650 },   // −€25, the pips follow
+      { sel: '#tpField',                            wait: 520 },   // and the other level
+      { sel: '#kbNum [data-k="5"]',                 wait: 182 },
+      { sel: '#kbNum [data-k="0"]',                 wait: 650 },   // +€50
       { sel: '#swTrailing',                         wait: 520 },
       { sel: '#addLevel',                           wait: 585 },   // ladder unfolds
       { sel: '#addLevel',                           wait: 650 },
@@ -2427,10 +2439,10 @@
       // put the prototype back the way a fresh visitor finds it
       kbClose(); sheetClose(false);
       setSide('buy'); setLots(0.10, false);
-      state.slPips = 20; state.tpPips = 40;
+      state.slPips = 0; state.tpPips = 0;
       state.trailing = false; state.breakeven = true;
       state.rangeAuto = true; state.rangePips = 5; state.comment = '';
-      state.slOn = true; state.tpOn = true; state.tpLadder = 0;
+      state.slOn = false; state.tpOn = false; state.tpLadder = 0;
       syncControls(); renderRangeRow(); renderCommentRow(); renderVolume();
       $('osheet').scrollTop = 0;
       toast.classList.remove('is-live');
