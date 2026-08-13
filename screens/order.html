@@ -1825,6 +1825,9 @@
     $('sumPl').className = 'pl-line ' + (total >= 0 ? 'win' : 'loss') + ' t-body-em';
     $('posCount').textContent = $('navCount').textContent = count;
     $('sumCount').textContent = count + (count === 1 ? ' position' : ' positions');
+    // nothing left to close: the summary has no work, so it goes
+    $('posSummary').hidden = count === 0;
+    $('posEmpty').hidden = count !== 0;
   }
 
   /* ---- the ✕s ---- */
@@ -1867,6 +1870,79 @@
     }
     const open = $('newRow').classList.toggle('is-open');
     track('flow_group_toggle', { open: open });
+  });
+
+  /* ===================== Close positions =====================
+     cTrader asks the question as three criteria — Direction ∧ P&L ∧ Symbols —
+     and answers it in pieces: `Close positions (2/2)`. Same job here, inverted:
+     the positions themselves are the rows, all of them start selected (panic
+     costs two taps), a tap puts one back (the cleanup case), and the button
+     carries the money it is about to realise. Nothing selected disables it —
+     the one honest disable cTrader already had on this screen. */
+  const AUDUSD_STOP = 61;
+  let closeSel = new Set();
+
+  const closeRows = () => [
+    ...(posAudusd ? [{ id: 'aud', sym: 'AUDUSD', lots: 0.33, pl: AUDUSD_PL, stop: AUDUSD_STOP }] : []),
+    ...posKids.map((k, i) => ({ id: 'kid' + i, sym: 'GBPJPY', lots: k.lots, pl: k.pl, stop: k.stop })),
+  ];
+
+  function renderCloseList() {
+    const rows = closeRows();
+    $('closeList').innerHTML = rows.map(r =>
+      '<button class="crow' + (closeSel.has(r.id) ? ' is-sel' : '') + '" data-row="' + r.id + '">'
+      + '<span class="ccheck"><svg width="14" height="11" viewBox="0 0 14 11" fill="none">'
+      + '<path d="M1.5 5.5L5 9L12.5 1.5" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'
+      + '<span class="cl"><span class="t-body-em">' + r.sym + '</span>'
+      + '<span class="sub t-micro-r">' + fmt2(r.lots) + ' lots</span></span>'
+      + '<span class="cr"><span class="t-body-em">' + signEur(r.pl) + '</span>'
+      + '<span class="guard t-micro-r">' + (r.stop === null ? 'No stop' : 'Stop −' + fmtEur(r.stop)) + '</span></span>'
+      + '</button>'
+    ).join('');
+    $('closeList').querySelectorAll('[data-row]').forEach(b => b.addEventListener('click', () => {
+      const id = b.dataset.row;
+      closeSel.has(id) ? closeSel.delete(id) : closeSel.add(id);
+      b.classList.toggle('is-sel', closeSel.has(id));
+      renderCloseBtn();
+      track('flow_closeall_toggle', { selected: closeSel.size });
+    }));
+    renderCloseBtn();
+  }
+
+  /* the button is the readout: how many, and what it costs to do it */
+  function renderCloseBtn() {
+    const picked = closeRows().filter(r => closeSel.has(r.id));
+    const sum = picked.reduce((s, r) => s + r.pl, 0);
+    const btn = $('closeConfirm');
+    btn.classList.toggle('is-disabled', picked.length === 0);
+    btn.textContent = picked.length === 0
+      ? 'Close positions'
+      : 'Close ' + picked.length + (picked.length === 1 ? ' position · ' : ' positions · ') + signEur(sum);
+  }
+
+  $('closeAllBtn').addEventListener('click', () => {
+    closeSel = new Set(closeRows().map(r => r.id));   // everything, by default
+    renderCloseList();
+    sheetOpen('mCloseAll');
+    track('flow_closeall_open', { positions: closeSel.size });
+  });
+
+  $('closeConfirm').addEventListener('click', () => {
+    const picked = closeRows().filter(r => closeSel.has(r.id));
+    if (!picked.length) return;
+    const sum = picked.reduce((s, r) => s + r.pl, 0);
+    const all = picked.length === closeRows().length;
+
+    if (closeSel.has('aud')) { posAudusd = false; $('rowAudusd').classList.add('is-closing'); }
+    // splice from the back so the earlier indices stay valid
+    posKids = posKids.filter((k, i) => !closeSel.has('kid' + i));
+    if (posKids.length) { renderKids(); renderGroupRow(); } else foldGroup();
+
+    sheetClose(false);
+    showToast(all ? 'All positions closed · ' + signEur(sum)
+                  : picked.length + ' positions closed · ' + signEur(sum), false);
+    renderPosSummary();
+    track('flow_closeall_done', { positions: picked.length, pl: Math.round(sum * 100) / 100, all: all });
   });
 
   /* New order brings the sheet back up over Positions */
