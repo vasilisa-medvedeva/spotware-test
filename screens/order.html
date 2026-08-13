@@ -803,15 +803,49 @@
     text-align: left;
   }
   .crow + .crow { border-top: 1px solid var(--border-divider); }
+  /* A square, and neutral: on these screens colour speaks only about money,
+     and a round green tick is the very glyph we removed from cTrader's rows.
+     Refs agree — Binance, Stake, Monzo all check money objects with squares. */
   .ccheck {
-    flex: none; width: 28px; height: 28px; border-radius: 999px;
+    flex: none; width: 24px; height: 24px; border-radius: 4px;
     border: 2px solid var(--neutral-300);
     display: flex; align-items: center; justify-content: center;
     transition: background 160ms ease, border-color 160ms ease;
   }
   .ccheck svg { opacity: 0; transition: opacity 120ms ease; }
-  .crow.is-sel .ccheck { background: var(--data-positive); border-color: var(--data-positive); }
+  .crow.is-sel .ccheck { background: var(--surface-inverse); border-color: var(--surface-inverse); }
   .crow.is-sel .ccheck svg { opacity: 1; }
+  /* the same plaque as the positions list: side is encoded once, everywhere */
+  .crow .badge {
+    flex: none; width: 40px; height: 40px; border-radius: var(--r-card);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .crow .badge--win  { background: var(--surface-positive); color: var(--data-positive); }
+  .crow .badge--loss { background: var(--surface-negative); color: var(--data-negative); }
+  .crow .badge .trend { stroke: currentColor; stroke-width: 2.5; fill: none;
+    stroke-linecap: round; stroke-linejoin: round; }
+
+  /* preselects, not filters: rows never hide, the checkboxes move */
+  .close-presets { display: flex; gap: 8px; }
+  .close-presets button {
+    flex: 1;
+    padding: 10px 6px;
+    border-radius: var(--r-card);
+    background: var(--surface-card);
+    border: 2px solid transparent;
+    display: flex; align-items: center; justify-content: center;
+    white-space: nowrap;
+    transition: border-color 220ms ease, opacity 90ms ease-out;
+  }
+  .close-presets button.is-sel { border-color: var(--data-positive); }
+
+  /* the money sits above the button, as it does in the summary block */
+  .close-total { display: flex; flex-direction: column; gap: 2px; }
+  .close-total .amount { font-variant-numeric: tabular-nums; }
+  .close-total .amount.win  { color: var(--data-positive); }
+  .close-total .amount.loss { color: var(--data-negative); }
+  .close-total .count { color: var(--text-secondary); }
+  .close-total.is-hid { display: none; }
   .crow .cl { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
   .crow .cl .sub { color: var(--text-secondary); }
   .crow .cr {
@@ -1389,7 +1423,18 @@
       </div>
     </div>
     <div class="m-body m-fade">
+      <p class="m-note t-caption" id="closeNote" style="margin: 0;">Everything is selected. Tap a position to keep it open.</p>
+      <div class="close-presets" id="closePresets">
+        <button data-pre="all"><span class="t-body-em">All</span></button>
+        <button data-pre="losing"><span class="t-body-em">Losing</span></button>
+        <button data-pre="winning"><span class="t-body-em">Winning</span></button>
+        <button data-pre="nostop"><span class="t-body-em">No stop</span></button>
+      </div>
       <div class="close-list" id="closeList"></div>
+      <div class="close-total" id="closeTotal">
+        <span class="amount win t-body-em" id="closeSum">+€4.80 realised</span>
+        <span class="count t-body" id="closeCount">4 of 4 positions selected</span>
+      </div>
     </div>
     <div class="m-foot"><button class="m-done t-button" id="closeConfirm">Close all</button></div>
   </div>
@@ -1837,12 +1882,14 @@
      places. Two or more of the same symbol AND side fold into a group
      (the sell stays its own row). Every ✕ closes for real: the row
      folds, the toast reports, the account recounts. */
+  /* The same book the mockup holds: −2.11 + 6.53 + 0.27 + 0.11 = +€4.80.
+     Not GERMANY 40 — that instrument starts at 1 lot (€1320 of margin), so
+     fractional index positions could not exist on this account. */
   const SEED_BOOK = [
-    { symbol: 'AUDUSD',     side: 'buy',  lots: 0.33, pl: -2.11, stop: 61 },
-    { symbol: 'GERMANY 40', side: 'buy',  lots: 0.05, pl: 1.24,  stop: 4.20 },
-    { symbol: 'GERMANY 40', side: 'buy',  lots: 0.03, pl: 0.58,  stop: null },
-    { symbol: 'GERMANY 40', side: 'buy',  lots: 0.02, pl: -0.31, stop: 1.75 },
-    { symbol: 'GERMANY 40', side: 'sell', lots: 0.04, pl: 0.87,  stop: 3.10 },
+    { symbol: 'AUDUSD', side: 'buy',  lots: 0.33, pl: -2.11, stop: 61 },
+    { symbol: 'GBPJPY', side: 'sell', lots: 0.10, pl: 6.53,  stop: 10.89 },
+    { symbol: 'GBPJPY', side: 'sell', lots: 0.01, pl: 0.27,  stop: null },
+    { symbol: 'GBPJPY', side: 'sell', lots: 0.01, pl: 0.11,  stop: null },
   ];
   let book = [], bookId = 0;
   const openGroups = new Set();
@@ -2053,14 +2100,25 @@
     id: String(p.id), sym: p.symbol, side: p.side, lots: p.lots, pl: p.pl, stop: p.stop,
   }));
 
+  /* the preselects: a chip moves the checkboxes, it never hides a row.
+     Once the user picks by hand the ring clears — no mode is pretending to hold. */
+  const PRESETS = {
+    all:     () => true,
+    losing:  r => r.pl < 0,
+    winning: r => r.pl >= 0,
+    nostop:  r => r.stop === null,
+  };
+  let closeMode = 'all';
+
   function renderCloseList() {
     const rows = closeRows();
     $('closeList').innerHTML = rows.map(r =>
       '<button class="crow' + (closeSel.has(r.id) ? ' is-sel' : '') + '" data-row="' + r.id + '">'
       + '<span class="ccheck"><svg width="14" height="11" viewBox="0 0 14 11" fill="none">'
       + '<path d="M1.5 5.5L5 9L12.5 1.5" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'
+      + '<span class="badge ' + (r.side === 'sell' ? 'badge--loss' : 'badge--win') + '">' + trendSvg(r.side) + '</span>'
       + '<span class="cl"><span class="t-body-em">' + r.sym + '</span>'
-      + '<span class="sub t-micro-r">' + fmt2(r.lots) + ' lots · ' + (r.side === 'sell' ? 'Sell' : 'Buy') + '</span></span>'
+      + '<span class="sub t-micro-r">' + fmt2(r.lots) + ' lots</span></span>'
       + '<span class="cr"><span class="t-body-em">' + signEur(r.pl) + '</span>'
       + '<span class="guard t-micro-r">' + (r.stop === null ? 'No stop' : 'Stop −' + eurTrim(r.stop)) + '</span></span>'
       + '</button>'
@@ -2069,24 +2127,53 @@
       const id = b.dataset.row;
       closeSel.has(id) ? closeSel.delete(id) : closeSel.add(id);
       b.classList.toggle('is-sel', closeSel.has(id));
-      renderCloseBtn();
+      closeMode = null;                       // a hand-picked set is nobody's preset
+      renderCloseFoot();
       track('flow_close_pick', { selected: closeSel.size });
     }));
-    renderCloseBtn();
+    renderCloseFoot();
   }
 
-  /* the button is the readout: how many, and what it costs to do it */
-  function renderCloseBtn() {
-    const picked = closeRows().filter(r => closeSel.has(r.id));
+  /* the money sits above the button; the button carries the action and the count */
+  function renderCloseFoot() {
+    const rows = closeRows();
+    const picked = rows.filter(r => closeSel.has(r.id));
     const sum = picked.reduce((s, r) => s + r.pl, 0);
+
+    $('closeTotal').classList.toggle('is-hid', picked.length === 0);
+    $('closeSum').textContent = signEur(sum) + ' realised';
+    $('closeSum').className = 'amount ' + (sum >= 0 ? 'win' : 'loss') + ' t-body-em';
+    $('closeCount').textContent = picked.length + ' of ' + rows.length
+      + (rows.length === 1 ? ' position selected' : ' positions selected');
+
+    /* The rows show their own state and the button says what it will do, so
+       a line narrating the obvious only slowed the sheet down. It speaks up
+       for the one state that isn't self-evident: nothing left to act on. */
+    $('closeNote').textContent = picked.length === 0
+      ? 'Nothing selected. Tap the positions you want to close.' : '';
+    $('closeNote').hidden = picked.length > 0;
+
     const btn = $('closeConfirm');
     btn.classList.toggle('is-disabled', picked.length === 0);
+    // blocked states name the way out, the same rule as `Not enough funds · €169 short`
     btn.textContent = picked.length === 0
-      ? 'Close positions'
-      : 'Close ' + picked.length + (picked.length === 1 ? ' position · ' : ' positions · ') + signEur(sum);
+      ? 'Select positions to close'
+      : 'Close ' + picked.length + (picked.length === 1 ? ' position' : ' positions');
+
+    document.querySelectorAll('#closePresets button').forEach(b =>
+      b.classList.toggle('is-sel', closeMode === b.dataset.pre));
   }
 
+  document.querySelectorAll('#closePresets button').forEach(b => b.addEventListener('click', () => {
+    closeMode = b.dataset.pre;
+    const test = PRESETS[closeMode];
+    closeSel = new Set(closeRows().filter(test).map(r => r.id));
+    renderCloseList();
+    track('flow_close_preset', { preset: closeMode, selected: closeSel.size });
+  }));
+
   $('closeAllBtn').addEventListener('click', () => {
+    closeMode = 'all';
     closeSel = new Set(closeRows().map(r => r.id));   // everything, by default
     renderCloseList();
     sheetOpen('mCloseAll');
