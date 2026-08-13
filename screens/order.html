@@ -729,6 +729,41 @@
     border-radius: var(--r-surface); background: var(--surface-control);
     display: flex; align-items: center; justify-content: center;
   }
+  .pos-summary[hidden] { display: none; }
+  .pos-empty { padding: 48px 16px; text-align: center; color: var(--text-secondary); }
+
+  /* ---- Close positions sheet: the rows themselves are the criteria ----
+     cTrader asks for Direction ∧ P&L ∧ Symbols and counts pieces; here the
+     positions are on the table, everything starts selected (panic = two
+     taps), a tap puts one back, and the button recounts the money live. */
+  .close-list {
+    display: flex; flex-direction: column;
+    border-radius: var(--r-surface); background: var(--surface-card);
+    overflow: hidden;
+  }
+  .crow {
+    display: flex; align-items: center; gap: 12px;
+    min-height: 64px; padding: 10px 16px;
+    text-align: left;
+  }
+  .crow + .crow { border-top: 1px solid var(--border-divider); }
+  .ccheck {
+    flex: none; width: 28px; height: 28px; border-radius: 999px;
+    border: 2px solid var(--neutral-300);
+    display: flex; align-items: center; justify-content: center;
+    transition: background 160ms ease, border-color 160ms ease;
+  }
+  .ccheck svg { opacity: 0; transition: opacity 120ms ease; }
+  .crow.is-sel .ccheck { background: var(--data-positive); border-color: var(--data-positive); }
+  .crow.is-sel .ccheck svg { opacity: 1; }
+  .crow .cl { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .crow .cl .sub { color: var(--text-secondary); }
+  .crow .cr {
+    display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
+    font-variant-numeric: tabular-nums;
+  }
+  .crow .cr .guard { color: var(--text-secondary); }
+  .m-done.is-disabled { background: var(--neutral-200); color: var(--text-secondary); pointer-events: none; }
 
   .fab {
     position: absolute; right: 17px; bottom: 116px;
@@ -1136,13 +1171,14 @@
         <div class="pos-children" id="newChildren"><div class="inner"></div></div>
       </div>
 
-      <div class="pos-summary">
+      <div class="pos-summary" id="posSummary">
         <div class="head">
           <span class="pl-line win t-body-em" id="sumPl">+€4.80 open P&amp;L</span>
           <span class="count-line t-body" id="sumCount">4 positions</span>
         </div>
-        <button class="close-all t-button">Close all</button>
+        <button class="close-all t-button" id="closeAllBtn">Close all</button>
       </div>
+      <div class="pos-empty t-body" id="posEmpty" hidden>No open positions</div>
     </div>
 
     <button class="fab" id="fabNew">
@@ -1315,6 +1351,23 @@
     <button class="m-done t-button" id="commentDone">Done</button>
   </div>
 
+  <!-- Close positions: their screen, our way — rows instead of criteria,
+       money instead of a piece count, the honest disable they already had -->
+  <div class="modal" id="mCloseAll">
+    <div class="m-head">
+      <div class="m-grab"></div>
+      <div class="m-bar">
+        <button class="cancel t-body-em" data-cancel="mCloseAll">Cancel</button>
+        <span class="t-body-em">Close positions</span>
+        <span class="spacer"></span>
+      </div>
+    </div>
+    <div class="m-body m-fade">
+      <div class="close-list" id="closeList"></div>
+    </div>
+    <button class="m-done t-button" id="closeConfirm">Close all</button>
+  </div>
+
   <!-- ============ iOS KEYBOARDS ============ -->
   <div class="kb kb--num" id="kbNum">
     <button class="k" data-k="1">1</button><button class="k" data-k="2">2</button><button class="k" data-k="3">3</button>
@@ -1355,8 +1408,8 @@
 
   /* the ladder splits the position the way the mockup does: level i sits at
      40·i pips, and the quantity split per ladder size is fixed */
-  const LADDER_QTY = { 2: [50, 50], 3: [50, 30, 20], 4: [40, 30, 20, 10] };
-  const LADDER_MAX = 4;
+  const LADDER_QTY = { 2: [50, 50], 3: [50, 30, 20], 4: [40, 30, 20, 10], 5: [30, 25, 20, 15, 10] };
+  const LADDER_MAX = 5;
   const ladderLevels = () => (LADDER_QTY[state.tpLadder] || []).map((qty, i) => ({ pips: 40 * (i + 1), qty }));
   const ladderTotal = () => ladderLevels().reduce((s, l) => s + l.pips * l.qty / 100 * state.lots * EUR_PER_PIP_LOT, 0);
 
@@ -1849,6 +1902,27 @@
   let kbStr = '';                      // the digits as typed, shown verbatim mid-edit
   let kbFresh = true;                  // the first keystroke replaces the shown value
 
+  /* Done switches between the sheet's flow and its pinned spot above the
+     keyboard — that switch is instant, so FLIP it: measure where it was,
+     let the mutation land it where it will be, then play the difference
+     back on the spring. No teleporting buttons. */
+  function flipDone(sheet, mutate) {
+    const done = sheet.querySelector('.m-done');
+    if (!done) { mutate(); return; }
+    const before = done.getBoundingClientRect();
+    mutate();
+    const after = done.getBoundingClientRect();
+    const dy = before.top - after.top;
+    if (Math.abs(dy) < 1) return;
+    done.style.transition = 'none';
+    done.style.transform = 'translateY(' + dy + 'px)';
+    void done.offsetHeight;
+    done.style.transition = 'transform 460ms var(--spring)';
+    done.style.transform = '';
+    clearTimeout(flipDone._t);
+    flipDone._t = setTimeout(() => { done.style.transition = ''; }, 500);
+  }
+
   /* the sheet glides its scroll on the keyboard's clock, so a low field —
      Take profit included — rides up into view as the board rises */
   let glideRaf = null;
@@ -1895,7 +1969,7 @@
     }
     if (openSheet) {
       const sheet = $(openSheet);
-      sheet.classList.add('is-full');
+      flipDone(sheet, () => sheet.classList.add('is-full'));   // Done glides to its pinned spot
       // once the sheet starts growing, glide the focused field up under the
       // header — one move with the keyboard, not a jump after it
       const field = target === 'sl' ? $('slField') : target === 'tp' ? $('tpField') : $('commentField');
@@ -1916,8 +1990,9 @@
     kbNum.classList.remove('is-open');
     kbQwerty.classList.remove('is-open');
     document.querySelectorAll('.modal').forEach(m => {
-      if (m.classList.contains('is-full')) glideScroll(m, 0, 360);   // ride back down with the shrink
-      m.classList.remove('is-full');
+      if (!m.classList.contains('is-full')) return;
+      glideScroll(m, 0, 360);                                  // ride back down with the shrink
+      flipDone(m, () => m.classList.remove('is-full'));        // Done glides home, no teleport
     });
     $('slField').classList.remove('is-focus');
     $('tpField').classList.remove('is-focus');
