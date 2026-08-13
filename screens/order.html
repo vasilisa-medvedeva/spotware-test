@@ -2450,12 +2450,20 @@
     });
   }
 
+  function clearHints() {
+    document.querySelectorAll('.hint-flash').forEach(el => el.classList.remove('hint-flash'));
+  }
+
   screenEl.addEventListener('click', e => {
-    // anything with a job of its own doesn't count as a missed tap
-    if (e.target.closest(HINT_SEL + ', .dimmer, .kb, .grabber, .demo-cursor')) return;
+    // a real control was hit: the guidance has done its job, out it goes
+    if (e.target.closest(HINT_SEL + ', .dimmer, .kb, .grabber, .demo-cursor')) { clearHints(); return; }
     flashHints();
     track('flow_dead_tap');
   });
+  // the rings also bow out as soon as the finger lands anywhere tappable
+  screenEl.addEventListener('pointerdown', e => {
+    if (e.target.closest(HINT_SEL)) clearHints();
+  }, true);
 
   /* ===================== funnel: the first real touch ===================== */
   let touched = false;
