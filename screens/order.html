@@ -395,7 +395,7 @@
     height: 870px;
     border-radius: var(--r-sheet) var(--r-sheet) 0 0;
     background: var(--surface-page);
-    padding: 12px 16px 24px;
+    padding: 0 16px 24px;      /* the sticky header carries the top 12px itself */
     display: flex; flex-direction: column; gap: 32px;
     transform: translateY(105%);
     transition: transform 460ms var(--spring);
@@ -416,14 +416,24 @@
     scrollbar-width: none;
   }
   .modal.is-full::-webkit-scrollbar { display: none; }
-  /* Done never leaves: it floats just above the keyboard while the sheet scrolls */
-  .modal.is-full .m-done {
-    position: fixed;
-    left: 16px; right: 16px; bottom: 265px;
+  /* Done's perch above the keyboard. A separate, never-transformed layer:
+     pinning the button inside the sheet made `fixed` answer to the sheet's
+     live transform and snap frames when it settled — the dock cannot. */
+  .done-dock {
+    position: absolute; left: 16px; right: 16px; bottom: 265px;
     z-index: 31;
+    pointer-events: none;
   }
+  .done-dock .m-done { pointer-events: auto; width: 100%; }
 
-  .m-head { display: flex; flex-direction: column; gap: 20px; }
+  /* the header rides the scroll: Cancel is reachable from any depth */
+  .m-head {
+    display: flex; flex-direction: column; gap: 20px;
+    position: sticky; top: 0; z-index: 2;
+    background: var(--surface-page);
+    margin: 0 -16px;
+    padding: 12px 16px 0;
+  }
   .m-head .m-grab { width: 36px; height: 5px; margin: 0 auto; border-radius: 999px; background: var(--neutral-300); }
   .m-head .m-bar { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; }
   .m-head .m-bar .cancel { width: 84px; }
@@ -1345,6 +1355,9 @@
     <button class="m-done t-button" id="closeConfirm">Close all</button>
   </div>
 
+  <!-- Done's perch above the keyboard: static ground for the pinned button -->
+  <div class="done-dock" id="doneDock"></div>
+
   <!-- ============ iOS KEYBOARDS ============ -->
   <div class="kb kb--num" id="kbNum">
     <button class="k" data-k="1">1</button><button class="k" data-k="2">2</button><button class="k" data-k="3">3</button>
@@ -2060,8 +2073,7 @@
      keyboard — that switch is instant, so FLIP it: measure where it was,
      let the mutation land it where it will be, then play the difference
      back on the spring. No teleporting buttons. */
-  function flipDone(sheet, mutate) {
-    const done = sheet.querySelector('.m-done');
+  function flipDone(done, mutate) {
     if (!done) { mutate(); return; }
     const before = done.getBoundingClientRect();
     mutate();
@@ -2123,7 +2135,13 @@
     }
     if (openSheet) {
       const sheet = $(openSheet);
-      flipDone(sheet, () => sheet.classList.add('is-full'));   // Done glides to its pinned spot
+      // Done leaves the (soon-transforming) sheet for the static dock,
+      // playing the trip on the spring
+      const done = sheet.querySelector('.m-done');
+      flipDone(done, () => {
+        sheet.classList.add('is-full');
+        if (done) $('doneDock').appendChild(done);
+      });
       // once the sheet starts growing, glide the focused field up under the
       // header — one move with the keyboard, not a jump after it
       const field = target === 'sl' ? $('slField') : target === 'tp' ? $('tpField') : $('commentField');
@@ -2146,7 +2164,11 @@
     document.querySelectorAll('.modal').forEach(m => {
       if (!m.classList.contains('is-full')) return;
       glideScroll(m, 0, 360);                                  // ride back down with the shrink
-      flipDone(m, () => m.classList.remove('is-full'));        // Done glides home, no teleport
+      const done = $('doneDock').querySelector('.m-done');
+      flipDone(done, () => {                                   // Done glides home, no teleport
+        m.classList.remove('is-full');
+        if (done) m.appendChild(done);
+      });
     });
     $('slField').classList.remove('is-focus');
     $('tpField').classList.remove('is-focus');
