@@ -343,7 +343,10 @@
     border-radius: var(--r-surface); background: var(--surface-card);
   }
 
-  .osheet .tail { height: 150px; }
+  /* Tall enough that the last rows can be scrolled clear of the bottom bar.
+     At 150px the sheet ran out of scroll while Market range and Comment were
+     still behind Place order — reachable, but never fully visible. */
+  .osheet .tail { height: 300px; }
 
   /* ---- bottom bar ---- */
   .bottom-bar {
@@ -1682,7 +1685,16 @@
   const snapshot = {};
   function sheetOpen(id) {
     openSheet = id;
-    Object.assign(snapshot, JSON.parse(JSON.stringify(state)));
+    Object.assign(snapshot, JSON.parse(JSON.stringify(state)));   // Cancel rewinds to here
+    /* The order screen says 'Not set' until protection is chosen, but the
+       sheet does not open empty: it proposes a 1:2 pair — 20 pips of risk
+       for 40 of reward — already editable. Change it, clear it, or Cancel
+       and nothing was ever set. */
+    if (id === 'mAutoclose' && !state.slOn && !state.tpOn && state.tpLadder === 0) {
+      state.slPips = 20; state.slOn = true;
+      state.tpPips = 40; state.tpOn = true;
+      renderAutoClose();
+    }
     screenEl.classList.add('is-sheet-open');
     sheetFit(id);
     $(id).classList.add('is-open');
@@ -2358,17 +2370,10 @@
       { sel: '#stepPlus',                           wait: 180 },
       { sel: '#stepPlus',                           wait: 585 },
       // 3 · Risk
-      { sel: '#acBlock',                            wait: 585 },   // both levels: Not set
-      { sel: '#slField',                            wait: 585 },   // the keyboard rises on an empty field
-      { sel: '#kbNum [data-k="2"]',                 wait: 182 },
-      { sel: '#kbNum [data-k="5"]',                 wait: 650 },   // −€25, the pips follow
-      { sel: '#tpField',                            wait: 520 },   // and the other level
-      { sel: '#kbNum [data-k="5"]',                 wait: 182 },
-      { sel: '#kbNum [data-k="0"]',                 wait: 650 },   // +€50
-      { sel: '#swTrailing',                         wait: 520 },
-      { sel: '#addLevel',                           wait: 585 },   // ladder unfolds
-      { sel: '#addLevel',                           wait: 650 },
-      { sel: '.m-done',                             wait: 650 },  // Done, wherever it perches
+      { sel: '#acBlock',                            wait: 780 },   // the sheet proposes 20 / 40
+      { sel: '#swTrailing',                         wait: 585 },
+      { sel: '#addLevel',                           wait: 900 },   // one extra level, the ladder unfolds
+      { sel: '.m-done',                             wait: 650 },   // Done, wherever it perches
       // 4 · Detail
       { sel: '#rowRange',                           wait: 585 },
       { sel: '#rangePlus',                          wait: 182 },
@@ -2418,12 +2423,30 @@
       screenEl.appendChild(ring);
       setTimeout(() => ring.remove(), 700);
     }
+    /* A target hiding behind the bottom bar can't be seen being tapped, so
+       the order sheet scrolls it into the clear first — Market range and
+       Comment sit right under that bar. */
+    const BAR_CLEARANCE = 176;   // the Place-order bar plus a breath
+    async function bringIntoView(el) {
+      const sheet = $('osheet');
+      if (!sheet.contains(el)) return;
+      const s = screenEl.getBoundingClientRect(), r = el.getBoundingClientRect();
+      const top = r.top - s.top, bottom = r.bottom - s.top;
+      let delta = 0;
+      if (bottom > 932 - BAR_CLEARANCE) delta = bottom - (932 - BAR_CLEARANCE);
+      else if (top < 110) delta = top - 110;
+      if (!delta) return;
+      glideScroll(sheet, sheet.scrollTop + delta, 420, 1);
+      await sleep(460);
+    }
+
     /* The finger presses, and then it STAYS: the swell relaxes but the dot
        holds the spot it touched for the whole beat, so the eye can follow
        what the tap did. It only leaves when the next act calls it. */
     async function tap(sel) {
       const el = document.querySelector(sel);
       if (!el) return;
+      await bringIntoView(el);
       await reach(el);
       cursor.classList.add('is-down');
       ringAt(pointOf(el));
