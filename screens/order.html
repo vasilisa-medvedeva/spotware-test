@@ -742,9 +742,16 @@
     display: flex; flex-direction: column; gap: 16px;
   }
   .pos-summary .head { display: flex; flex-direction: column; gap: 2px; }
-  .pos-summary .pl-line { font-variant-numeric: tabular-nums; }
+  .pos-summary .pl-line { font-variant-numeric: tabular-nums; transition: color 320ms ease; }
   .pos-summary .pl-line.win  { color: var(--data-positive); }
   .pos-summary .pl-line.loss { color: var(--data-negative); }
+  /* a changed counter takes a breath */
+  @keyframes countPop {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.25); }
+    100% { transform: scale(1); }
+  }
+  .count-pop { animation: countPop 360ms var(--spring); }
   .pos-summary .count-line { color: var(--text-secondary); }
   .pos-summary .close-all {
     height: 64px;
@@ -1858,9 +1865,65 @@
     showToast(label, false);
     track('flow_close_position', { count: ids.length });
     setTimeout(() => {
+      const prev = bookAggregates();
       book = book.filter(p => !ids.includes(p.id));
       renderBook();
+      recountFrom(prev);
     }, 340);
+  }
+
+  /* ===================== the recount, made visible =====================
+     When positions close, nothing snaps to its new value: every survivor's
+     money ROLLS from the old number to the new one on the same easing the
+     rest of the prototype rides, the summary line re-inks its color, and
+     the count badges take a breath. */
+  function bookAggregates() {
+    const per = {};
+    buckets().forEach(b => per[b.key] = {
+      pl: b.kids.reduce((s, k) => s + k.pl, 0),
+      lots: Math.round(b.kids.reduce((s, k) => s + k.lots, 0) * 100) / 100,
+      stop: b.kids.reduce((s, k) => s + (k.stop || 0), 0),
+      naked: b.kids.filter(k => k.stop === null).length,
+      n: b.kids.length,
+    });
+    return { per, total: book.reduce((s, p) => s + p.pl, 0), count: book.length };
+  }
+
+  function tweenText(el, from, to, fmt) {
+    if (!el) return;
+    cancelAnimationFrame(el._tw);
+    const t0 = performance.now();
+    (function step(now) {
+      const p = Math.min(1, (now - t0) / 640);
+      const v = from + (to - from) * (1 - Math.pow(1 - p, 3));
+      el.textContent = fmt(p === 1 ? to : v);
+      if (p < 1) el._tw = requestAnimationFrame(step);
+    })(t0);
+  }
+
+  function popCount(el) {
+    el.classList.remove('count-pop');
+    void el.offsetWidth;
+    el.classList.add('count-pop');
+  }
+
+  function recountFrom(prev) {
+    const now = bookAggregates();
+    if (Math.abs(prev.total - now.total) > 0.004)
+      tweenText($('sumPl'), prev.total, now.total, v => signEur(v) + ' open P&L');
+    if (prev.count !== now.count) { popCount($('posCount')); popCount($('navCount')); }
+    document.querySelectorAll('#posList .pos-row').forEach(row => {
+      const key = row.dataset.bucket || row.dataset.group;
+      const was = prev.per[key], is = now.per[key];
+      if (!was || !is) return;
+      if (Math.abs(was.pl - is.pl) > 0.004)
+        tweenText(row.querySelector('.pl'), was.pl, is.pl, signEur);
+      if (row.dataset.group && Math.abs(was.lots - is.lots) > 0.004)
+        tweenText(row.querySelector('.sub'), was.lots, is.lots, v => is.n + ' positions · ' + fmt2(v) + ' lots');
+      const guard = row.querySelector('.guard');
+      if (guard && !was.naked && !is.naked && Math.abs(was.stop - is.stop) > 0.004)
+        tweenText(guard, was.stop, is.stop, v => 'Stop −' + eurTrim(v));
+    });
   }
 
   function renderPosSummary() {
@@ -1950,8 +2013,10 @@
     const sum = picked.reduce((s, r) => s + r.pl, 0);
     const all = picked.length === closeRows().length;
 
+    const prev = bookAggregates();
     book = book.filter(p => !closeSel.has(String(p.id)));
     renderBook();
+    recountFrom(prev);
 
     sheetClose(false);
     showToast(all ? 'All positions closed · ' + signEur(sum)
