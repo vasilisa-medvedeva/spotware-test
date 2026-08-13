@@ -935,16 +935,30 @@
   /* ================= demo film cursor (as in the Plata deck) ================= */
   body.is-demo #screen { pointer-events: none; }
   .demo-cursor {
-    position: fixed; left: 0; top: 0; z-index: 99;
+    position: absolute; left: 0; top: 0; z-index: 99;
     width: 34px; height: 34px; margin: -17px 0 0 -17px;
     border-radius: 50%;
     background: rgba(20, 24, 32, .28);
     box-shadow: 0 0 0 1.5px rgba(255, 255, 255, .65) inset, 0 2px 10px rgba(0, 0, 0, .25);
     pointer-events: none;
-    transition: transform 600ms cubic-bezier(0.4, 0, 0.2, 1), scale 160ms ease, opacity 300ms ease;
+    transition: transform 560ms cubic-bezier(0.4, 0, 0.2, 1), scale 220ms var(--spring), opacity 300ms ease;
   }
-  .demo-cursor.is-down { scale: .74; background: rgba(20, 24, 32, .42); }
+  /* the touch swells instead of shrinking, and holds still while it lands */
+  .demo-cursor.is-down { scale: 1.4; background: rgba(20, 24, 32, .42); }
   .demo-cursor.is-away { opacity: 0; }
+  /* …and leaves a ring behind at the point it touched */
+  .demo-ring {
+    position: absolute; left: 0; top: 0; z-index: 98;
+    width: 34px; height: 34px; margin: -17px 0 0 -17px;
+    border-radius: 50%;
+    border: 2px solid rgba(20, 24, 32, .45);
+    pointer-events: none;
+    animation: demoRing 620ms cubic-bezier(0.22, 0.8, 0.3, 1) forwards;
+  }
+  @keyframes demoRing {
+    from { scale: .8; opacity: .8; }
+    to   { scale: 2.6; opacity: 0; }
+  }
 
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { transition-duration: 1ms !important; animation-duration: 1ms !important; }
@@ -2298,20 +2312,48 @@
 
     const cursor = document.createElement('div');
     cursor.className = 'demo-cursor';
-    document.body.appendChild(cursor);
+    screenEl.appendChild(cursor);
 
+    /* ===== the film, in six acts =====
+       1 · Direction — one tap repaints the screen and turns the arrows
+       2 · Size      — a preset rolls the slider and every number with it
+       3 · Risk      — Auto close: the keyboard types a stop, the ladder unfolds
+       4 · Detail    — Market range, tuned a tenth of a pip at a time
+       5 · Send      — the wait lives inside the button, then Positions
+       6 · Manage    — a group opens, a position closes, the numbers recount */
     const FILM = [
-      { sel: '#optSell',                                   wait: 1100 },
-      { sel: '.presets button[data-pct="50"]',             wait: 1000 },
-      { sel: '#optBuy',                                    wait: 900 },
-      { sel: '#acBlock',                                   wait: 1100 },
-      { sel: '#swTrailing',                                wait: 900 },
-      { sel: '#acDone',                                    wait: 1000 },
-      { sel: '#rowRange',                                  wait: 1100 },
-      { sel: '#rangePresets button[data-pips="5"]',        wait: 900 },
-      { sel: '#rangeDone',                                 wait: 1000 },
-      { sel: '#placeBtn',                                  wait: 4200 },   // spinner + ride + toast
-      { sel: '#fabNew',                                    wait: 1400 },
+      // 1 · Direction
+      { sel: '#optSell',                            wait: 1000 },
+      { sel: '#optBuy',                             wait: 900 },
+      // 2 · Size
+      { sel: '.presets button[data-pct="50"]',      wait: 1100 },
+      { sel: '#stepPlus',                           wait: 260 },
+      { sel: '#stepPlus',                           wait: 900 },
+      // 3 · Risk
+      { sel: '#acBlock',                            wait: 900 },
+      { sel: '#slField',                            wait: 900 },   // the keyboard rises
+      { sel: '#kbNum [data-k="2"]',                 wait: 280 },
+      { sel: '#kbNum [data-k="5"]',                 wait: 900 },   // −€25, pips recount
+      { sel: '#swTrailing',                         wait: 800 },
+      { sel: '#addLevel',                           wait: 900 },   // ladder unfolds
+      { sel: '#addLevel',                           wait: 1000 },
+      { sel: '.m-done',                             wait: 1000 },  // Done, wherever it perches
+      // 4 · Detail
+      { sel: '#rowRange',                           wait: 900 },
+      { sel: '#rangePlus',                          wait: 280 },
+      { sel: '#rangePlus',                          wait: 800 },
+      { sel: '#rangeDone',                          wait: 900 },
+      // 5 · Send
+      { sel: '#placeBtn',                           wait: 4400 },  // spinner, ride, toast
+      // 6 · Manage
+      { sel: '[data-group="GERMANY 40|buy"]',       wait: 1000 },  // the group opens
+      { sel: '[data-children="GERMANY 40|buy"] .pos-child:nth-child(2) [data-close]', wait: 1800 },
+      // 7 · Close out — the sheet asks which, and the button counts the cost
+      { sel: '#closeAllBtn',                        wait: 1100 },
+      { sel: '#closeList .crow:nth-child(1)',       wait: 700 },   // one put back
+      { sel: '#closeList .crow:nth-child(2)',       wait: 900 },   // and another
+      { sel: '#closeConfirm',                       wait: 2200 },
+      { sel: '#fabNew',                             wait: 1400 },
     ];
 
     const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -2325,26 +2367,45 @@
         });
       });
     }
+    /* coordinates inside #screen, so the cursor rides scrolls and sheets */
+    function pointOf(el) {
+      const r = el.getBoundingClientRect(), s = screenEl.getBoundingClientRect();
+      return { x: r.left - s.left + r.width / 2, y: r.top - s.top + r.height / 2 };
+    }
     function reach(el) {
-      const r = el.getBoundingClientRect();
-      cursor.style.transform = 'translate3d(' + (r.left + r.width / 2) + 'px,' + (r.top + r.height / 2) + 'px,0)';
-      return sleep(600);
+      const p = pointOf(el);
+      cursor.style.transform = 'translate3d(' + p.x + 'px,' + p.y + 'px,0)';
+      return sleep(560);
+    }
+    /* the touch: the dot swells, a ring is left at the point, and the cursor
+       stays put until the press has landed — nothing slides mid-tap */
+    function ringAt(p) {
+      const ring = document.createElement('div');
+      ring.className = 'demo-ring';
+      ring.style.transform = 'translate3d(' + p.x + 'px,' + p.y + 'px,0)';
+      screenEl.appendChild(ring);
+      setTimeout(() => ring.remove(), 700);
     }
     async function tap(sel) {
       const el = document.querySelector(sel);
       if (!el) return;
       await reach(el);
+      const p = pointOf(el);
       cursor.classList.add('is-down');
+      ringAt(p);
       el.classList.add('is-pressed');
-      await sleep(150);
-      cursor.classList.remove('is-down');
+      await sleep(180);
       el.classList.remove('is-pressed');
       el.click();
+      await sleep(140);            // the swell settles before the next journey
+      cursor.classList.remove('is-down');
     }
     async function rewind() {
       cursor.classList.add('is-away');
       // put the prototype back the way a fresh visitor finds it
+      kbClose(); sheetClose(false);
       setSide('buy'); setLots(0.10, false);
+      state.slPips = 20; state.tpPips = 40;
       state.trailing = false; state.breakeven = true;
       state.rangeAuto = true; state.rangePips = 5; state.comment = '';
       state.slOn = true; state.tpOn = true; state.tpLadder = 0;
