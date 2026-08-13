@@ -934,30 +934,38 @@
 
   /* ================= demo film cursor (as in the Plata deck) ================= */
   body.is-demo #screen { pointer-events: none; }
-  .demo-cursor {
-    position: absolute; left: 0; top: 0; z-index: 99;
-    width: 34px; height: 34px; margin: -17px 0 0 -17px;
+  /* Position and swell live on SEPARATE elements on purpose. The standalone
+     `scale` property is multiplied onto `transform`, so a scaled dot has its
+     translation scaled too — at (115, 474) a 1.4 swell threw it to (161, 663).
+     The outer node only ever translates; the inner one only ever scales. */
+  .demo-cursor, .demo-ring {
+    position: absolute; left: 0; top: 0;
+    width: 0; height: 0;
+    pointer-events: none;
+  }
+  .demo-cursor { z-index: 99; transition: transform 560ms cubic-bezier(0.4, 0, 0.2, 1); }
+  .demo-ring   { z-index: 98; }
+  .demo-cursor i, .demo-ring i {
+    position: absolute; left: -17px; top: -17px;
+    display: block; width: 34px; height: 34px;
     border-radius: 50%;
+  }
+  .demo-cursor i {
     background: rgba(20, 24, 32, .28);
     box-shadow: 0 0 0 1.5px rgba(255, 255, 255, .65) inset, 0 2px 10px rgba(0, 0, 0, .25);
-    pointer-events: none;
-    transition: transform 560ms cubic-bezier(0.4, 0, 0.2, 1), scale 220ms var(--spring), opacity 300ms ease;
+    transition: transform 220ms var(--spring), background-color 220ms ease, opacity 300ms ease;
   }
   /* the touch swells instead of shrinking, and holds still while it lands */
-  .demo-cursor.is-down { scale: 1.4; background: rgba(20, 24, 32, .42); }
-  .demo-cursor.is-away { opacity: 0; }
+  .demo-cursor.is-down i { transform: scale(1.4); background: rgba(20, 24, 32, .42); }
+  .demo-cursor.is-away i { opacity: 0; }
   /* …and leaves a ring behind at the point it touched */
-  .demo-ring {
-    position: absolute; left: 0; top: 0; z-index: 98;
-    width: 34px; height: 34px; margin: -17px 0 0 -17px;
-    border-radius: 50%;
+  .demo-ring i {
     border: 2px solid rgba(20, 24, 32, .45);
-    pointer-events: none;
     animation: demoRing 620ms cubic-bezier(0.22, 0.8, 0.3, 1) forwards;
   }
   @keyframes demoRing {
-    from { scale: .8; opacity: .8; }
-    to   { scale: 2.6; opacity: 0; }
+    from { transform: scale(.8); opacity: .8; }
+    to   { transform: scale(2.6); opacity: 0; }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -2312,6 +2320,7 @@
 
     const cursor = document.createElement('div');
     cursor.className = 'demo-cursor';
+    cursor.innerHTML = '<i></i>';
     screenEl.appendChild(cursor);
 
     /* ===== the film, in six acts =====
@@ -2382,22 +2391,25 @@
     function ringAt(p) {
       const ring = document.createElement('div');
       ring.className = 'demo-ring';
+      ring.innerHTML = '<i></i>';
       ring.style.transform = 'translate3d(' + p.x + 'px,' + p.y + 'px,0)';
       screenEl.appendChild(ring);
       setTimeout(() => ring.remove(), 700);
     }
+    /* The finger presses, and then it STAYS: the swell relaxes but the dot
+       holds the spot it touched for the whole beat, so the eye can follow
+       what the tap did. It only leaves when the next act calls it. */
     async function tap(sel) {
       const el = document.querySelector(sel);
       if (!el) return;
       await reach(el);
-      const p = pointOf(el);
       cursor.classList.add('is-down');
-      ringAt(p);
+      ringAt(pointOf(el));
       el.classList.add('is-pressed');
       await sleep(180);
       el.classList.remove('is-pressed');
       el.click();
-      await sleep(140);            // the swell settles before the next journey
+      await sleep(200);            // the swell relaxes, the dot does not move
       cursor.classList.remove('is-down');
     }
     async function rewind() {
