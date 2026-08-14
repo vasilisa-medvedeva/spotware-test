@@ -8,7 +8,7 @@
      film_watched         {seconds}         5 / 15 / 30s of genuine on-screen time
      handoff_click                          the arrow was used, not the scrollbar
      proto_reached        {via}             arrow | scroll — did the hand-off do its job?
-     proto_fullscreen_open{source}          tap | auto (phones open it on approach)
+     proto_fullscreen_open{source}          tap | instant (phones open it on load)
 
    THE PROTOTYPE (screens/order.html)
      proto_touch                            the first real touch — closes the funnel

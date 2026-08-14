@@ -360,15 +360,11 @@
     }
     document.getElementById('phoneTap').addEventListener('click', () => fullprotoOpen('tap'));
 
-    /* On a phone the scaled poster is a dead step — reaching the prototype is
-       already the intent, so it opens itself once the block is properly in view. */
+    /* On a phone the deck is skipped entirely — the prototype IS the deliverable,
+       so it opens fullscreen on arrival. Closing it reveals the deck, and the
+       poster tap can bring it back. */
     if (matchMedia('(max-width: 720px)').matches) {
-      const autoOpen = new IntersectionObserver(entries => {
-        if (!entries[0].isIntersecting) return;
-        autoOpen.disconnect();
-        fullprotoOpen('auto');
-      }, { rootMargin: '-30% 0px -30% 0px' });
-      autoOpen.observe(document.getElementById('prototype'));
+      fullprotoOpen('instant');
     }
     document.getElementById('fullprotoClose').addEventListener('click', () => {
       fullproto.classList.remove('is-open');
