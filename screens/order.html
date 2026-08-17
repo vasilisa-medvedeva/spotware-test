@@ -2511,36 +2511,37 @@
     const FILM = [
       { sel: '#optSell',                            wait: 650, },
       { sel: '#optBuy',                             wait: 585 },
-      { sel: '.presets button[data-pct="50"]',      wait: 715, },
+      { sel: '.presets button[data-pct="50"]',      wait: 715,
+        act: { pin: 1, line: 'Лоты никуда не делись, деньги добавлены рядом: опытный работает как привык, новичок видит цену решения.' } },
       { sel: '#stepPlus',                           wait: 180 },
       { sel: '#stepPlus',                           wait: 585 },
       { sel: '#acBlock',                            wait: 780,   // the sheet proposes 20 / 40
-        act: { pin: 1, line: 'Stop loss and Take profit carry equal weight, the sums visible at once.' } },
+        act: { pin: 2, line: 'Stop loss и Take profit равного веса, суммы видны сразу.' } },
       { sel: '#swTrailing',                         wait: 585,   // the sheet is open by now
-        act: { pin: 2, line: 'Stop and Take are sections of the same structure.' } },
+        act: { pin: 3, line: 'Стоп и тейк — разделы одинаковой структуры.' } },
       { sel: '#addLevel',                           wait: 900 },   // one extra level, the ladder unfolds
       { sel: '.m-done',                             wait: 650 },   // Done, wherever it perches
       { sel: '#rowRange',                           wait: 585, },
       { sel: '#rangePlus',                          wait: 182,   // the range sheet is open
-        act: { pin: 3, line: 'Presets in money, instead of a nameless number in pips.' } },
+        act: { pin: 4, line: 'Пресеты в деньгах, раньше — безымянное число в пунктах.' } },
       { sel: '#rangePlus',                          wait: 520 },
       { sel: '#rangeDone',                          wait: 585 },
       { sel: '#rowComment',                         wait: 780,   // the Comment sheet rides up
-        act: { pin: 4, line: 'Opens as a sheet; the form never rebuilds under the finger.' } },
+        act: { pin: 5, line: 'Открывается шитом, форма не перестраивается под пальцем.' } },
       { sel: '#commentField',                       wait: 585 },   // QWERTY rises
       { sel: '#kbQwerty [data-k="b"]',              wait: 182 },   // types 'Buy'
       { sel: '#kbQwerty [data-k="u"]',              wait: 182 },
       { sel: '#kbQwerty [data-k="y"]',              wait: 520 },
       { sel: '#commentDone',                        wait: 585 },
       { drag: 1.0, ms: 900,                         wait: 1690,   // into the red: Not enough funds, Deposit offers itself
-        act: { pin: 5, line: 'The button names the reason: \u20ac169 short.' }, cueAfter: true },
+        act: { pin: 6, line: 'Кнопка называет причину: не хватает \u20ac169.' }, cueAfter: true },
       { sel: '.presets button[data-pct="50"]',      wait: 1100 },  // back inside the balance, the button wakes
       { sel: '#placeBtn',                           wait: 2860, hide: true },  // spinner, ride, toast; the bubble leaves with the screen
       { sel: '[data-group="GERMANY 40|buy"]',       wait: 650,   // the group opens
-        act: { pin: 6, line: 'Risk in every row: what the stop would take, or \u201cNo stop\u201d.' } },
+        act: { pin: 7, line: 'Риск в каждой строке: сколько заберёт стоп или \u00abNo stop\u00bb.' } },
       { sel: '[data-children="GERMANY 40|buy"] .pos-child:nth-child(2) [data-close]', wait: 1170 },
       { sel: '#closeAllBtn',                        wait: 715,   // the sheet rides up first
-        act: { pin: 7, line: 'The rows are the positions themselves, not criteria: you see exactly what you close.' }, cueAfter: true },
+        act: { pin: 8, line: 'Строками служат сами позиции, а не критерии: видно, что именно закрываешь.' }, cueAfter: true },
       { sel: '#closeList .crow:nth-child(1)',       wait: 455 },   // one put back
       { sel: '#closeList .crow:nth-child(2)',       wait: 585 },   // and another
       { sel: '#closeConfirm',                       wait: 1430 },
