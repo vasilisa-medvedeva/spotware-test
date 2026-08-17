@@ -2519,14 +2519,14 @@
                                                     wait: 1690 },  // the red is read before it is fixed
       { sel: '.presets button[data-pct="50"]',      wait: 1100 },  // back inside the balance, the button wakes
       // 2 · Protection
-      { sel: '#acBlock',                            wait: 780,   // the sheet proposes 20 / 40
+      { sel: '#acBlock',                            wait: 1560,  // the sheet proposes 20 / 40 — the block's point gets read
         act: { pin: 3, line: 'Stop loss и Take profit равного веса, суммы видны сразу' } },
-      { sel: '#swTrailing',                         wait: 585,   // the sheet is open by now
+      { sel: '#swTrailing',                         wait: 455,   // the sheet is open by now
         act: { pin: 4, line: 'Break-even стоял в общем ряду и без стопа не делал ничего. Теперь он внутри стопа — там, где работает' } },
-      { sel: '#addLevel',                           wait: 900 },   // one extra level, the ladder unfolds
-      { sel: '.m-done',                             wait: 650 },   // Done, wherever it perches
+      { sel: '#addLevel',                           wait: 780 },   // one extra level, the ladder unfolds
+      { sel: '.m-done',                             wait: 520 },   // Done, wherever it perches
       // 4 · Market range
-      { sel: '#rowRange',                           wait: 585 },
+      { sel: '#rowRange',                           wait: 455 },
       { sel: '#rangePlus',                          wait: 182,   // the range sheet is open
         act: { pin: 5, line: 'Пресеты в деньгах, раньше — безымянное число в пунктах' } },
       { sel: '#rangePlus',                          wait: 520 },
