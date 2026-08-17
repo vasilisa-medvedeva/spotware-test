@@ -57,7 +57,13 @@
       align-items: center;
       gap: clamp(34px, 4.4vw, 60px);
     }
-    .film__row { width: 100%; }
+    /* DEMO reads from the top of the phone, not from its middle: a tall
+       phone used to push the whole label down into the gap */
+    .film__row {
+      width: 100%;
+      align-items: flex-start;
+      padding-top: 28px;            /* the title lines up with the phone's shoulder */
+    }
 
     /* the film phone is a picture, not a control: this shield swallows taps so
        the frame never takes them and a touch-drag still scrolls the page */
@@ -381,6 +387,7 @@
 
     /* ---- mobile ---- */
     @media (max-width: 720px) {
+      .film { display: none; }        /* the prototype is the whole deck here */
       .stage { gap: 72px; padding-bottom: 88px; }
       .proto, .film__row { flex-direction: column; gap: 28px; }
       .proto-label { text-align: center; }
@@ -478,6 +485,14 @@
       layout: matchMedia('(max-width: 720px)').matches ? 'mobile' : 'desktop',
     });
 
+    /* ===== on a phone the deck is the prototype and nothing else =====
+       A 332px film in a 375px viewport is unreadable, and it would burn a
+       phone's data to play. The block is removed outright — not hidden —
+       so the frame never loads and its loops never run. */
+    const onPhone = matchMedia('(max-width: 720px)').matches;
+    const filmSection = document.getElementById('film');
+    if (onPhone && filmSection) filmSection.remove();
+
     /* ===== the hand-off funnel: deck_view → film_watched → proto_reached =====
        proto_touch, reported from inside the frame, closes it. Without the
        middle rungs, "nobody tried the prototype" could not be told apart
@@ -487,6 +502,7 @@
     // genuinely on screen and the tab is in front — never the film's own laps.
     const filmMarks = [5, 15, 30];
     let filmOnScreen = false, filmSeconds = 0;
+    if (filmSection.isConnected) {
     new IntersectionObserver(
       entries => { filmOnScreen = entries[0].isIntersecting; },
       { threshold: .5 }
@@ -501,14 +517,16 @@
     }, 1000);
 
     // The arrow versus the scrollbar — does the hand-off actually get used?
+    }
     let cameByArrow = false;
-    document.querySelector('.film-next').addEventListener('click', () => {
+    if (filmSection.isConnected) document.querySelector('.film-next').addEventListener('click', () => {
       cameByArrow = true;
       track('handoff_click');
     });
 
     /* ===== hold-to-pause: a press on the film phone stops the story =====
        The shield owns the events, so it relays the press into the frame. */
+    if (filmSection.isConnected) {
     const filmShield = document.querySelector('#film .phone__shield');
     const filmFrame = document.querySelector('#film iframe');
     const filmPause = on => {
@@ -572,6 +590,8 @@
         }, 180);
       } else paint();
     });
+
+    }
 
     const protoWatch = new IntersectionObserver(entries => {
       if (!entries[0].isIntersecting) return;
