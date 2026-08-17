@@ -2539,7 +2539,8 @@
       { sel: '[data-group="GERMANY 40|buy"]',       wait: 650,   // the group opens
         act: { pin: 6, line: 'Risk in every row: what the stop would take, or \u201cNo stop\u201d.' } },
       { sel: '[data-children="GERMANY 40|buy"] .pos-child:nth-child(2) [data-close]', wait: 1170 },
-      { sel: '#closeAllBtn',                        wait: 715, },
+      { sel: '#closeAllBtn',                        wait: 715,   // the sheet rides up first
+        act: { pin: 7, line: 'The rows are the positions themselves, not criteria: you see exactly what you close.' }, cueAfter: true },
       { sel: '#closeList .crow:nth-child(1)',       wait: 455 },   // one put back
       { sel: '#closeList .crow:nth-child(2)',       wait: 585 },   // and another
       { sel: '#closeConfirm',                       wait: 1430 },
