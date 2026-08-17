@@ -2552,7 +2552,29 @@
       if (act && window.parent !== window) parent.postMessage({ spotwareDemo: act }, '*');
     }
 
-    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    /* ===== hold-to-pause, as in stories =====
+       The deck relays a press on the film phone; standalone runs listen for
+       the finger directly. The film's clock simply stops counting while the
+       press lasts — whatever micro-animation is mid-flight settles, and the
+       next beat waits. */
+    let filmPaused = false;
+    window.addEventListener('message', e => {
+      if (e.data && 'spotwareDemoPause' in e.data) filmPaused = !!e.data.spotwareDemoPause;
+    });
+    document.addEventListener('pointerdown', () => { filmPaused = true; }, true);
+    ['pointerup', 'pointercancel'].forEach(ev =>
+      document.addEventListener(ev, () => { filmPaused = false; }, true));
+
+    /* a sleep that only counts unpaused, on-screen time */
+    const sleep = ms => new Promise(r => {
+      let left = ms, last = performance.now();
+      (function tick(now) {
+        if (!filmPaused) left -= now - last;
+        last = now;
+        if (left <= 0) return r();
+        requestAnimationFrame(tick);
+      })(performance.now());
+    });
     function awake() {
       if (!document.hidden) return Promise.resolve();
       return new Promise(r => {

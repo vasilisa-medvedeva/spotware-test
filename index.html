@@ -422,6 +422,17 @@
       track('handoff_click');
     });
 
+    /* ===== hold-to-pause: a press on the film phone stops the story =====
+       The shield owns the events, so it relays the press into the frame. */
+    const filmShield = document.querySelector('#film .phone__shield');
+    const filmFrame = document.querySelector('#film iframe');
+    const filmPause = on => {
+      try { filmFrame.contentWindow.postMessage({ spotwareDemoPause: on }, '*'); } catch (e) {}
+    };
+    filmShield.addEventListener('pointerdown', () => filmPause(true));
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev =>
+      filmShield.addEventListener(ev, () => filmPause(false)));
+
     /* ===== the film's running commentary =====
        The demo frame cues each act; the bubble at the phone re-pops with
        every scene and speaks over the exact screen it describes. */
