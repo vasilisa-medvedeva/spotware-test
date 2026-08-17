@@ -2509,6 +2509,9 @@
     /* An `act` on a beat is a caption cue: the deck shows it beside the
        phone while the scene plays. */
     const FILM = [
+      // 0 · The frame this was designed inside
+      { act: { pin: 0, line: 'Визуальный язык cTrader сохранён: трейдер узнаёт свой интерфейс. Обновлено поведение, а не внешность' },
+                                                    wait: 2600 },
       // 1 · Volume — cranked past the balance, then stepped back
       { drag: 1.0, ms: 1000,                        wait: 780,   // the numbers climb: lots, and money beside them
         act: { pin: 1, line: 'Лоты никуда не делись, деньги добавлены рядом: опытный работает как привык, новичок видит цену решения' } },
@@ -2519,7 +2522,7 @@
       { sel: '#acBlock',                            wait: 780,   // the sheet proposes 20 / 40
         act: { pin: 3, line: 'Stop loss и Take profit равного веса, суммы видны сразу' } },
       { sel: '#swTrailing',                         wait: 585,   // the sheet is open by now
-        act: { pin: 4, line: 'Стоп и тейк — разделы одинаковой структуры' } },
+        act: { pin: 4, line: 'Break-even стоял в общем ряду и без стопа не делал ничего. Теперь он внутри стопа — там, где работает' } },
       { sel: '#addLevel',                           wait: 900 },   // one extra level, the ladder unfolds
       { sel: '.m-done',                             wait: 650 },   // Done, wherever it perches
       // 4 · Market range
@@ -2532,9 +2535,9 @@
       { sel: '#rowComment',                         wait: 780,   // the Comment sheet rides up
         act: { pin: 6, line: 'Открывается шитом, форма не перестраивается под пальцем' } },
       { sel: '#commentField',                       wait: 585 },   // QWERTY rises
-      { sel: '#kbQwerty [data-k="b"]',              wait: 90, fast: true },   // types 'Buy' at typing speed
-      { sel: '#kbQwerty [data-k="u"]',              wait: 90, fast: true },
-      { sel: '#kbQwerty [data-k="y"]',              wait: 420, fast: true },
+      { sel: '#kbQwerty [data-k="b"]',              wait: 40, fast: true },   // types 'Buy' at a quick hand's pace
+      { sel: '#kbQwerty [data-k="u"]',              wait: 40, fast: true },
+      { sel: '#kbQwerty [data-k="y"]',              wait: 380, fast: true },
       { sel: '#commentDone',                        wait: 585 },
       // 6 · Send
       { sel: '#placeBtn',                           wait: 2860, hide: true },  // spinner, ride, toast; the bubble leaves with the screen
@@ -2564,9 +2567,27 @@
     window.addEventListener('message', e => {
       if (e.data && 'spotwareDemoPause' in e.data) filmPaused = !!e.data.spotwareDemoPause;
     });
-    document.addEventListener('pointerdown', () => { filmPaused = true; }, true);
+    const relay = msg => { if (window.parent !== window) parent.postMessage(msg, '*'); };
+    document.addEventListener('pointerdown', () => { filmPaused = true; relay({ spotwareDemoPaused: true }); }, true);
     ['pointerup', 'pointercancel'].forEach(ev =>
-      document.addEventListener(ev, () => { filmPaused = false; }, true));
+      document.addEventListener(ev, () => { filmPaused = false; relay({ spotwareDemoPaused: false }); }, true));
+
+    /* one pausable clock for the whole film: the deck's player reads it */
+    let filmNow = 0;
+    (function clock() {
+      let prev = performance.now();
+      requestAnimationFrame(function step(t) {
+        if (!filmPaused) filmNow += t - prev;
+        prev = t;
+        requestAnimationFrame(step);
+      });
+    })();
+
+    /* how long a lap runs, before it has ever run: reach + press + release
+       per beat, plus its dwell. Lap one uses this; lap two onward uses the
+       measured truth. */
+    const beatCost = b => (b.drag ? (b.ms || 800) + 540 : b.sel ? (b.fast ? 290 : 640) : 0) + b.wait;
+    let lapStart = 0, lapMs = 0;
 
     /* a sleep that only counts unpaused, on-screen time */
     const sleep = ms => new Promise(r => {
@@ -2658,14 +2679,14 @@
       const el = document.querySelector(sel);
       if (!el) return;
       await bringIntoView(el);
-      await reach(el, fast ? 150 : 380);   // typing hops, not journeys
+      await reach(el, fast ? 90 : 380);    // typing hops, not journeys
       cursor.classList.add('is-down');
       ringAt(pointOf(el));
       el.classList.add('is-pressed');
-      await sleep(fast ? 80 : 120);
+      await sleep(fast ? 50 : 120);
       el.classList.remove('is-pressed');
       el.click();
-      await sleep(fast ? 60 : 140);        // the swell relaxes, the dot does not move
+      await sleep(fast ? 40 : 140);        // the swell relaxes, the dot does not move
       cursor.classList.remove('is-down');
     }
     async function rewind() {
@@ -2690,19 +2711,23 @@
     (async function play() {
       const once = matchMedia('(prefers-reduced-motion: reduce)').matches;
       await sleep(800);
+      lapMs = FILM.reduce((sum, b) => sum + beatCost(b), 0) + 1250;   // + the rewind
+      setInterval(() => relay({ spotwareDemoTick: { t: filmNow - lapStart, d: lapMs, paused: filmPaused } }), 100);
       do {
+        lapStart = filmNow;
         for (const beat of FILM) {
           await awake();
           if (!beat.cueAfter) cue(beat.act);   // the caption lands as the scene opens…
           await (beat.drag ? dragVolume(beat.drag, beat.ms || 800)
                 : beat.sel ? tap(beat.sel, beat.fast) : Promise.resolve());
           if (beat.cueAfter) cue(beat.act);    // …or once the action has shown its result
-          if (beat.hide && window.parent !== window) parent.postMessage({ spotwareDemoHide: true }, '*');
+          if (beat.hide) relay({ spotwareDemoHide: true });
           await sleep(beat.wait);
         }
         if (once) break;
         await sleep(600);
         await rewind();
+        lapMs = filmNow - lapStart;    // the measured truth replaces the estimate
       } while (true);
     })();
   }
