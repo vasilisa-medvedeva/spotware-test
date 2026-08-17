@@ -2529,9 +2529,9 @@
       { sel: '#rowComment',                         wait: 780,   // the Comment sheet rides up
         act: { pin: 5, line: 'Открывается шитом, форма не перестраивается под пальцем.' } },
       { sel: '#commentField',                       wait: 585 },   // QWERTY rises
-      { sel: '#kbQwerty [data-k="b"]',              wait: 182 },   // types 'Buy'
-      { sel: '#kbQwerty [data-k="u"]',              wait: 182 },
-      { sel: '#kbQwerty [data-k="y"]',              wait: 520 },
+      { sel: '#kbQwerty [data-k="b"]',              wait: 90, fast: true },   // types 'Buy' at typing speed
+      { sel: '#kbQwerty [data-k="u"]',              wait: 90, fast: true },
+      { sel: '#kbQwerty [data-k="y"]',              wait: 420, fast: true },
       { sel: '#commentDone',                        wait: 585 },
       { drag: 1.0, ms: 900,                         wait: 1690,   // into the red: Not enough funds, Deposit offers itself
         act: { pin: 6, line: 'Кнопка называет причину: не хватает \u20ac169.' }, cueAfter: true },
@@ -2590,10 +2590,11 @@
       const r = el.getBoundingClientRect(), s = screenEl.getBoundingClientRect();
       return { x: r.left - s.left + r.width / 2, y: r.top - s.top + r.height / 2 };
     }
-    function reach(el) {
+    function reach(el, ms) {
       const p = pointOf(el);
+      cursor.style.transitionDuration = (ms || 380) + 'ms';
       cursor.style.transform = 'translate3d(' + p.x + 'px,' + p.y + 'px,0)';
-      return sleep(380);
+      return sleep(ms || 380);
     }
     /* the touch: the dot swells, a ring is left at the point, and the cursor
        stays put until the press has landed — nothing slides mid-tap */
@@ -2650,18 +2651,18 @@
     /* The finger presses, and then it STAYS: the swell relaxes but the dot
        holds the spot it touched for the whole beat, so the eye can follow
        what the tap did. It only leaves when the next act calls it. */
-    async function tap(sel) {
+    async function tap(sel, fast) {
       const el = document.querySelector(sel);
       if (!el) return;
       await bringIntoView(el);
-      await reach(el);
+      await reach(el, fast ? 150 : 380);   // typing hops, not journeys
       cursor.classList.add('is-down');
       ringAt(pointOf(el));
       el.classList.add('is-pressed');
-      await sleep(120);
+      await sleep(fast ? 80 : 120);
       el.classList.remove('is-pressed');
       el.click();
-      await sleep(140);            // the swell relaxes, the dot does not move
+      await sleep(fast ? 60 : 140);        // the swell relaxes, the dot does not move
       cursor.classList.remove('is-down');
     }
     async function rewind() {
@@ -2690,7 +2691,7 @@
         for (const beat of FILM) {
           await awake();
           if (!beat.cueAfter) cue(beat.act);   // the caption lands as the scene opens…
-          await (beat.drag ? dragVolume(beat.drag, beat.ms || 800) : tap(beat.sel));
+          await (beat.drag ? dragVolume(beat.drag, beat.ms || 800) : tap(beat.sel, beat.fast));
           if (beat.cueAfter) cue(beat.act);    // …or once the action has shown its result
           if (beat.hide && window.parent !== window) parent.postMessage({ spotwareDemoHide: true }, '*');
           await sleep(beat.wait);
