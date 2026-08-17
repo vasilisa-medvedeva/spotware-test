@@ -2506,36 +2506,49 @@
        4 · Detail    — Market range, tuned a tenth of a pip at a time
        5 · Send      — the wait lives inside the button, then Positions
        6 · Manage    — a group opens, a position closes, the numbers recount */
+    /* An `act` on a beat is a caption cue: the deck shows it beside the
+       phone while the scene plays. */
     const FILM = [
-      // 1 · Direction
-      { sel: '#optSell',                            wait: 650 },
+      { sel: '#optSell',                            wait: 650, },
       { sel: '#optBuy',                             wait: 585 },
-      // 2 · Size
-      { sel: '.presets button[data-pct="50"]',      wait: 715 },
+      { sel: '.presets button[data-pct="50"]',      wait: 715, },
       { sel: '#stepPlus',                           wait: 180 },
       { sel: '#stepPlus',                           wait: 585 },
-      // 3 · Risk
-      { sel: '#acBlock',                            wait: 780 },   // the sheet proposes 20 / 40
-      { sel: '#swTrailing',                         wait: 585 },
+      { sel: '#acBlock',                            wait: 780,   // the sheet proposes 20 / 40
+        act: { pin: 1, line: 'Stop loss and Take profit carry equal weight, the sums visible at once.' } },
+      { sel: '#swTrailing',                         wait: 585,   // the sheet is open by now
+        act: { pin: 2, line: 'Stop and Take are sections of the same structure.' } },
       { sel: '#addLevel',                           wait: 900 },   // one extra level, the ladder unfolds
       { sel: '.m-done',                             wait: 650 },   // Done, wherever it perches
-      // 4 · Detail
-      { sel: '#rowRange',                           wait: 585 },
-      { sel: '#rangePlus',                          wait: 182 },
+      { sel: '#rowRange',                           wait: 585, },
+      { sel: '#rangePlus',                          wait: 182,   // the range sheet is open
+        act: { pin: 3, line: 'Presets in money, instead of a nameless number in pips.' } },
       { sel: '#rangePlus',                          wait: 520 },
       { sel: '#rangeDone',                          wait: 585 },
-      // 5 · Send
-      { sel: '#placeBtn',                           wait: 2860 },  // spinner, ride, toast
-      // 6 · Manage
-      { sel: '[data-group="GERMANY 40|buy"]',       wait: 650 },  // the group opens
+      { sel: '#rowComment',                         wait: 780,   // the Comment sheet rides up
+        act: { pin: 4, line: 'Opens as a sheet; the form never rebuilds under the finger.' } },
+      { sel: '#commentField',                       wait: 585 },   // QWERTY rises
+      { sel: '#kbQwerty [data-k="b"]',              wait: 182 },   // types 'Buy'
+      { sel: '#kbQwerty [data-k="u"]',              wait: 182 },
+      { sel: '#kbQwerty [data-k="y"]',              wait: 520 },
+      { sel: '#commentDone',                        wait: 585 },
+      { drag: 1.0, ms: 900,                         wait: 1690,   // into the red: Not enough funds, Deposit offers itself
+        act: { pin: 5, line: 'The button names the reason: \u20ac169 short.' }, cueAfter: true },
+      { sel: '.presets button[data-pct="50"]',      wait: 1100 },  // back inside the balance, the button wakes
+      { sel: '#placeBtn',                           wait: 2860, hide: true },  // spinner, ride, toast; the bubble leaves with the screen
+      { sel: '[data-group="GERMANY 40|buy"]',       wait: 650,   // the group opens
+        act: { pin: 6, line: 'Risk in every row: what the stop would take, or \u201cNo stop\u201d.' } },
       { sel: '[data-children="GERMANY 40|buy"] .pos-child:nth-child(2) [data-close]', wait: 1170 },
-      // 7 · Close out — the sheet asks which, and the button counts the cost
-      { sel: '#closeAllBtn',                        wait: 715 },
+      { sel: '#closeAllBtn',                        wait: 715, },
       { sel: '#closeList .crow:nth-child(1)',       wait: 455 },   // one put back
       { sel: '#closeList .crow:nth-child(2)',       wait: 585 },   // and another
       { sel: '#closeConfirm',                       wait: 1430 },
       { sel: '#fabNew',                             wait: 910 },
     ];
+    /* the deck listens; standalone runs just play mute */
+    function cue(act) {
+      if (act && window.parent !== window) parent.postMessage({ spotwareDemo: act }, '*');
+    }
 
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     function awake() {
@@ -2585,6 +2598,31 @@
       await sleep(460);
     }
 
+    /* the film drags the volume slider the way a finger would: the dot
+       lands on the knob, swells, and rides it while the number climbs */
+    async function dragVolume(toLots, ms) {
+      const sl = document.getElementById('slider');
+      await bringIntoView(sl);
+      const knob = document.getElementById('sliderKnob');
+      await reach(knob);
+      cursor.classList.add('is-down');
+      ringAt(pointOf(knob));
+      cursor.style.transition = 'none';
+      const from = state.lots, t0 = performance.now();
+      await new Promise(done => {
+        (function step(now) {
+          const p = Math.min(1, (now - t0) / ms);
+          setLots(from + (toLots - from) * (1 - Math.pow(1 - p, 3)), false);
+          const k = pointOf(knob);
+          cursor.style.transform = 'translate3d(' + k.x + 'px,' + k.y + 'px,0)';
+          if (p < 1) requestAnimationFrame(step); else done();
+        })(t0);
+      });
+      cursor.style.transition = '';
+      await sleep(160);
+      cursor.classList.remove('is-down');
+    }
+
     /* The finger presses, and then it STAYS: the swell relaxes but the dot
        holds the spot it touched for the whole beat, so the eye can follow
        what the tap did. It only leaves when the next act calls it. */
@@ -2604,6 +2642,7 @@
     }
     async function rewind() {
       cursor.classList.add('is-away');
+      if (window.parent !== window) parent.postMessage({ spotwareDemoHide: true }, '*');
       // put the prototype back the way a fresh visitor finds it
       kbClose(); sheetClose(false);
       setSide('buy'); setLots(0.10, false);
@@ -2626,7 +2665,10 @@
       do {
         for (const beat of FILM) {
           await awake();
-          await tap(beat.sel);
+          if (!beat.cueAfter) cue(beat.act);   // the caption lands as the scene opens…
+          await (beat.drag ? dragVolume(beat.drag, beat.ms || 800) : tap(beat.sel));
+          if (beat.cueAfter) cue(beat.act);    // …or once the action has shown its result
+          if (beat.hide && window.parent !== window) parent.postMessage({ spotwareDemoHide: true }, '*');
           await sleep(beat.wait);
         }
         if (once) break;

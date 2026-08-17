@@ -89,6 +89,79 @@
     }
     .film-principles strong { font-weight: 600; }
 
+    /* ---- the commentary bubble: speaks at the phone, act by act ----
+       Sits off the phone's right shoulder on desktop, above it on a phone.
+       Each act pops it afresh on the deck's spring. */
+    /* a Figma comment: teardrop card, numbered pin at its shoulder */
+    .film-bubble {
+      position: absolute;
+      right: calc(100% - 14px);
+      top: 536px;   /* level with the Auto close block on the screen */
+      z-index: 12;
+      width: clamp(200px, 21vw, 250px);
+      padding: 14px 16px 14px 18px;
+      border-radius: 20px 20px 4px 20px;   /* the sharp corner looks right, at the phone */
+      background: #fff;
+      box-shadow: 0 14px 36px rgba(24, 30, 40, .16);
+      font-family: 'Onest', system-ui, sans-serif;
+      font-size: clamp(12px, 1.1vw, 14px);
+      font-weight: 400;
+      line-height: 1.45;
+      color: var(--ink-proto);
+      opacity: 0;
+      transform: translateY(8px) scale(.92);
+      transform-origin: 0 0;
+      transition: opacity 200ms ease, transform 420ms cubic-bezier(0.22, 1.2, 0.36, 1);
+      pointer-events: none;
+    }
+    .film-bubble__pin {
+      position: absolute;
+      right: -14px;
+      bottom: -14px;
+      width: 28px;
+      height: 28px;
+      border-radius: 50% 50% 4px 50%;
+      background: #009345;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+      box-shadow: 0 6px 16px rgba(0, 147, 69, .35);
+    }
+    .film-bubble.is-live { opacity: 1; transform: none; }
+    /* on a phone the bubble speaks from above the screen, tail down */
+    @media (max-width: 720px) {
+      .film-bubble {
+        left: 50%;
+        right: auto;              /* unpin the desktop anchors, or the box */
+        bottom: auto;             /* stretches between top and bottom */
+        top: -12px;
+        transform: translate(-50%, calc(-100% + 8px)) scale(.92);
+        transform-origin: 50% 100%;
+        width: min(84vw, 300px);
+        border-radius: 20px 20px 4px 20px;   /* the sharp corner looks at the phone below */
+      }
+      .film-bubble.is-live { transform: translate(-50%, -100%); opacity: 1; }
+      .film-bubble__pin {
+        left: auto;
+        right: -12px;
+        top: auto;
+        bottom: -12px;
+        border-radius: 50% 50% 4px 50%;
+      }
+    }
+    .film-bubble__act {
+      display: block;
+      margin-bottom: 4px;
+      font-size: clamp(9px, .85vw, 11px);
+      font-weight: 600;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      opacity: .5;
+    }
+
     .proto-label { margin: 0; text-align: left; }
     .proto-label h2 {
       margin: 0;
@@ -280,6 +353,12 @@
             </div>
           </div>
           <div class="phone__shield" aria-hidden="true"></div>
+          <!-- the film's commentary, spoken at the phone act by act -->
+          <div class="film-bubble" id="filmBubble" aria-live="polite">
+            <span class="film-bubble__pin" id="filmBubblePin" aria-hidden="true"></span>
+            <span class="film-bubble__act" id="filmBubbleAct"></span>
+            <span id="filmBubbleLine"></span>
+          </div>
         </div>
       </div>
       <a class="film-next" href="#prototype">
@@ -348,6 +427,24 @@
     document.querySelector('.film-next').addEventListener('click', () => {
       cameByArrow = true;
       track('handoff_click');
+    });
+
+    /* ===== the film's running commentary =====
+       The demo frame cues each act; the bubble at the phone re-pops with
+       every scene and speaks over the exact screen it describes. */
+    const filmBubble = document.getElementById('filmBubble');
+    window.addEventListener('message', e => {
+      if (e.data && e.data.spotwareDemoHide) { filmBubble.classList.remove('is-live'); return; }
+      const act = e.data && e.data.spotwareDemo;
+      if (!act || !act.line) return;
+      filmBubble.classList.remove('is-live');
+      void filmBubble.offsetWidth;              // restart the pop
+      document.getElementById('filmBubblePin').textContent = act.pin;
+      const eyebrow = document.getElementById('filmBubbleAct');
+      eyebrow.textContent = act.title || '';
+      eyebrow.hidden = !act.title;
+      document.getElementById('filmBubbleLine').textContent = act.line;
+      filmBubble.classList.add('is-live');
     });
 
     const protoWatch = new IntersectionObserver(entries => {
