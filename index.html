@@ -109,9 +109,12 @@
       line-height: 1.45;
       color: var(--ink-proto);
       opacity: 0;
-      transform: translateY(8px) scale(.92);
-      transform-origin: 0 0;
-      transition: opacity 200ms ease, transform 420ms cubic-bezier(0.22, 1.2, 0.36, 1);
+      transform: translate(-6px, 10px) scale(.86);
+      transform-origin: 0 0;               /* it opens out of the pin's corner */
+      box-shadow: 0 6px 14px rgba(24, 30, 40, .05);
+      transition: opacity 220ms ease,
+                  transform 520ms cubic-bezier(0.22, 1.2, 0.36, 1),
+                  box-shadow 520ms ease;
       pointer-events: none;
     }
     .film-bubble__pin {
@@ -129,8 +132,23 @@
       font-size: 12px;
       font-weight: 600;
       box-shadow: 0 6px 16px rgba(0, 147, 69, .35);
+      transform: scale(0);
+      transition: transform 460ms cubic-bezier(0.34, 1.56, 0.64, 1);
     }
-    .film-bubble.is-live { opacity: 1; transform: none; }
+    .film-bubble.is-live {
+      opacity: 1; transform: none;
+      box-shadow: 0 14px 36px rgba(24, 30, 40, .16);
+      transition-delay: 110ms;             /* …the card follows it */
+    }
+    .film-bubble.is-live .film-bubble__pin { transform: scale(1); }
+    /* the outgoing line steps back before the next one arrives */
+    .film-bubble.is-leaving {
+      opacity: 0;
+      transform: translateY(-6px) scale(.97);
+      transition-duration: 170ms;
+      transition-delay: 0ms;
+    }
+    .film-bubble.is-leaving .film-bubble__pin { transform: scale(.55); transition-duration: 170ms; }
     /* on a phone the bubble speaks from above the screen, tail down */
     @media (max-width: 720px) {
       .film-bubble {
@@ -144,7 +162,19 @@
         border-radius: 20px 20px 4px 20px;   /* the sharp corner looks at the phone below */
       }
       .film-bubble.is-live { transform: translate(-50%, -100%); opacity: 1; }
+      .film-bubble.is-leaving { transform: translate(-50%, calc(-100% - 6px)) scale(.97); opacity: 0; }
     }
+    .film-bubble__line {
+      display: block;
+      opacity: 0;
+      transform: translateY(5px);
+      transition: opacity 260ms ease, transform 400ms cubic-bezier(0.22, 1.2, 0.36, 1);
+    }
+    .film-bubble.is-live .film-bubble__line {
+      opacity: 1; transform: none;
+      transition-delay: 320ms;
+    }
+    .film-bubble.is-leaving .film-bubble__line { transition-duration: 120ms; transition-delay: 0ms; }
     .film-bubble__act {
       display: block;
       margin-bottom: 4px;
@@ -395,7 +425,7 @@
           <div class="film-bubble" id="filmBubble" aria-live="polite">
             <span class="film-bubble__pin" id="filmBubblePin" aria-hidden="true"></span>
             <span class="film-bubble__act" id="filmBubbleAct"></span>
-            <span id="filmBubbleLine"></span>
+            <span class="film-bubble__line" id="filmBubbleLine"></span>
           </div>
         </div>
         <!-- the film's own transport: play / pause and how much lap is left -->
@@ -524,14 +554,23 @@
       if (e.data && e.data.spotwareDemoHide) { filmBubble.classList.remove('is-live'); return; }
       const act = e.data && e.data.spotwareDemo;
       if (!act || !act.line) return;
-      filmBubble.classList.remove('is-live');
-      void filmBubble.offsetWidth;              // restart the pop
-      document.getElementById('filmBubblePin').textContent = act.pin;
-      const eyebrow = document.getElementById('filmBubbleAct');
-      eyebrow.textContent = act.title || '';
-      eyebrow.hidden = !act.title;
-      document.getElementById('filmBubbleLine').textContent = act.line;
-      filmBubble.classList.add('is-live');
+      const paint = () => {
+        document.getElementById('filmBubblePin').textContent = act.pin;
+        const eyebrow = document.getElementById('filmBubbleAct');
+        eyebrow.textContent = act.title || '';
+        eyebrow.hidden = !act.title;
+        document.getElementById('filmBubbleLine').textContent = act.line;
+        filmBubble.classList.add('is-live');
+      };
+      clearTimeout(filmBubble._swap);
+      if (filmBubble.classList.contains('is-live')) {
+        filmBubble.classList.add('is-leaving');   // step back, then bring the next in
+        filmBubble._swap = setTimeout(() => {
+          filmBubble.classList.remove('is-live', 'is-leaving');
+          void filmBubble.offsetWidth;
+          paint();
+        }, 180);
+      } else paint();
     });
 
     const protoWatch = new IntersectionObserver(entries => {
