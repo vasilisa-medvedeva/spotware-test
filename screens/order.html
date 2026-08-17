@@ -2509,39 +2509,42 @@
     /* An `act` on a beat is a caption cue: the deck shows it beside the
        phone while the scene plays. */
     const FILM = [
-      { sel: '#optSell',                            wait: 650, },
-      { sel: '#optBuy',                             wait: 585 },
-      { sel: '.presets button[data-pct="50"]',      wait: 715,
-        act: { pin: 1, line: 'Лоты никуда не делись, деньги добавлены рядом: опытный работает как привык, новичок видит цену решения.' } },
-      { sel: '#stepPlus',                           wait: 180 },
-      { sel: '#stepPlus',                           wait: 585 },
+      // 1 · Volume — cranked past the balance, then stepped back
+      { drag: 1.0, ms: 1000,                        wait: 780,   // the numbers climb: lots, and money beside them
+        act: { pin: 1, line: 'Лоты никуда не делись, деньги добавлены рядом: опытный работает как привык, новичок видит цену решения' } },
+      { act: { pin: 2, line: 'Кнопка называет причину: не хватает €169' },
+                                                    wait: 1690 },  // the red is read before it is fixed
+      { sel: '.presets button[data-pct="50"]',      wait: 1100 },  // back inside the balance, the button wakes
+      // 2 · Protection
       { sel: '#acBlock',                            wait: 780,   // the sheet proposes 20 / 40
-        act: { pin: 2, line: 'Stop loss и Take profit равного веса, суммы видны сразу.' } },
+        act: { pin: 3, line: 'Stop loss и Take profit равного веса, суммы видны сразу' } },
       { sel: '#swTrailing',                         wait: 585,   // the sheet is open by now
-        act: { pin: 3, line: 'Стоп и тейк — разделы одинаковой структуры.' } },
+        act: { pin: 4, line: 'Стоп и тейк — разделы одинаковой структуры' } },
       { sel: '#addLevel',                           wait: 900 },   // one extra level, the ladder unfolds
       { sel: '.m-done',                             wait: 650 },   // Done, wherever it perches
-      { sel: '#rowRange',                           wait: 585, },
+      // 4 · Market range
+      { sel: '#rowRange',                           wait: 585 },
       { sel: '#rangePlus',                          wait: 182,   // the range sheet is open
-        act: { pin: 4, line: 'Пресеты в деньгах, раньше — безымянное число в пунктах.' } },
+        act: { pin: 5, line: 'Пресеты в деньгах, раньше — безымянное число в пунктах' } },
       { sel: '#rangePlus',                          wait: 520 },
       { sel: '#rangeDone',                          wait: 585 },
+      // 5 · Comment
       { sel: '#rowComment',                         wait: 780,   // the Comment sheet rides up
-        act: { pin: 5, line: 'Открывается шитом, форма не перестраивается под пальцем.' } },
+        act: { pin: 6, line: 'Открывается шитом, форма не перестраивается под пальцем' } },
       { sel: '#commentField',                       wait: 585 },   // QWERTY rises
       { sel: '#kbQwerty [data-k="b"]',              wait: 90, fast: true },   // types 'Buy' at typing speed
       { sel: '#kbQwerty [data-k="u"]',              wait: 90, fast: true },
       { sel: '#kbQwerty [data-k="y"]',              wait: 420, fast: true },
       { sel: '#commentDone',                        wait: 585 },
-      { drag: 1.0, ms: 900,                         wait: 1690,   // into the red: Not enough funds, Deposit offers itself
-        act: { pin: 6, line: 'Кнопка называет причину: не хватает \u20ac169.' }, cueAfter: true },
-      { sel: '.presets button[data-pct="50"]',      wait: 1100 },  // back inside the balance, the button wakes
+      // 6 · Send
       { sel: '#placeBtn',                           wait: 2860, hide: true },  // spinner, ride, toast; the bubble leaves with the screen
+      // 7 · Manage
       { sel: '[data-group="GERMANY 40|buy"]',       wait: 650,   // the group opens
-        act: { pin: 7, line: 'Риск в каждой строке: сколько заберёт стоп или \u00abNo stop\u00bb.' } },
+        act: { pin: 7, line: 'Риск в каждой строке: сколько заберёт стоп или «No stop»' } },
       { sel: '[data-children="GERMANY 40|buy"] .pos-child:nth-child(2) [data-close]', wait: 1170 },
+      // 8 · Close out
       { sel: '#closeAllBtn',                        wait: 715,   // the sheet rides up first
-        act: { pin: 8, line: 'Строками служат сами позиции, а не критерии: видно, что именно закрываешь.' }, cueAfter: true },
+        act: { pin: 8, line: 'Строками служат сами позиции, а не критерии: видно, что именно закрываешь' }, cueAfter: true },
       { sel: '#closeList .crow:nth-child(1)',       wait: 455 },   // one put back
       { sel: '#closeList .crow:nth-child(2)',       wait: 585 },   // and another
       { sel: '#closeConfirm',                       wait: 1430 },
@@ -2691,7 +2694,8 @@
         for (const beat of FILM) {
           await awake();
           if (!beat.cueAfter) cue(beat.act);   // the caption lands as the scene opens…
-          await (beat.drag ? dragVolume(beat.drag, beat.ms || 800) : tap(beat.sel, beat.fast));
+          await (beat.drag ? dragVolume(beat.drag, beat.ms || 800)
+                : beat.sel ? tap(beat.sel, beat.fast) : Promise.resolve());
           if (beat.cueAfter) cue(beat.act);    // …or once the action has shown its result
           if (beat.hide && window.parent !== window) parent.postMessage({ spotwareDemoHide: true }, '*');
           await sleep(beat.wait);
