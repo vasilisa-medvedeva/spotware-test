@@ -116,11 +116,11 @@
     }
     .film-bubble__pin {
       position: absolute;
-      right: -14px;
-      bottom: -14px;
+      left: -14px;
+      top: -14px;
       width: 28px;
       height: 28px;
-      border-radius: 50% 50% 4px 50%;
+      border-radius: 50% 50% 50% 4px;
       background: #009345;
       color: #fff;
       display: flex;
@@ -144,13 +144,6 @@
         border-radius: 20px 20px 4px 20px;   /* the sharp corner looks at the phone below */
       }
       .film-bubble.is-live { transform: translate(-50%, -100%); opacity: 1; }
-      .film-bubble__pin {
-        left: auto;
-        right: -12px;
-        top: auto;
-        bottom: -12px;
-        border-radius: 50% 50% 4px 50%;
-      }
     }
     .film-bubble__act {
       display: block;
