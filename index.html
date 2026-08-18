@@ -62,10 +62,10 @@
     .film__row {
       width: 100%;
       align-items: stretch;         /* both columns run the full height of the row */
-      padding-top: 28px;            /* title and player start on the same line */
+      padding-top: 28px;            /* the title lines up with the phone's shoulder */
     }
-    /* the left column: title at the top, arrow pushed to the bottom, level
-       with the foot of the phone opposite (the player rides above it) */
+    /* the left column: title at the top, arrow pushed to the bottom — and then
+       lifted back over the player, so it reads against the phone itself */
     .film__side {
       display: flex;
       flex-direction: column;
@@ -199,7 +199,9 @@
     }
 
     /* phone and its transport, stacked; the row still sees one column */
-    .film-stage { display: flex; flex-direction: column; align-items: center; gap: 22px; }
+    /* the transport's own size, named so the arrow opposite can clear it */
+    .film { --player-h: 36px; --stage-gap: 22px; }
+    .film-stage { display: flex; flex-direction: column; align-items: center; gap: var(--stage-gap); }
 
     .film-player {
       display: flex; align-items: center; gap: 12px;
@@ -209,7 +211,7 @@
     }
     .film-player__btn {
       flex: none;
-      width: 36px; height: 36px;
+      width: var(--player-h); height: var(--player-h);   /* the row's tallest part, so this is the player's height */
       display: flex; align-items: center; justify-content: center;
       border: 0; border-radius: 50%;
       background: #fff;
@@ -265,7 +267,9 @@
        The words moved down to the prototype, where they describe the phone the
        reader is already looking at. Up here the arrow only has to point. */
     .film-next {
-      margin-top: auto;             /* bottom of the column = foot of the phone */
+      margin-top: auto;             /* bottom of the column = bottom of the player */
+      /* clear the player, so the arrow sits level with the foot of the phone */
+      margin-bottom: calc(var(--player-h) + var(--stage-gap));
       display: block;
       width: fit-content;
       text-decoration: none;
@@ -417,15 +421,6 @@
         </a>
         </div>
         <div class="film-stage">
-        <!-- the film's own transport: play / pause and how much lap is left -->
-        <div class="film-player">
-          <button class="film-player__btn" id="filmPlay" aria-label="Pause the demo">
-            <svg class="i-pause" width="14" height="16" viewBox="0 0 14 16" aria-hidden="true"><rect x="1" y="1" width="4" height="14" rx="1.4"/><rect x="9" y="1" width="4" height="14" rx="1.4"/></svg>
-            <svg class="i-play" width="14" height="16" viewBox="0 0 14 16" aria-hidden="true"><path d="M2 1.6 12.4 8 2 14.4Z"/></svg>
-          </button>
-          <span class="film-player__track"><span class="film-player__fill" id="filmFill"></span></span>
-          <span class="film-player__time" id="filmTime">–0:00</span>
-        </div>
         <div class="phone">
           <div class="frame">
             <div class="screen">
@@ -440,6 +435,15 @@
             <span class="film-bubble__act" id="filmBubbleAct"></span>
             <span class="film-bubble__line" id="filmBubbleLine"></span>
           </div>
+        </div>
+        <!-- the film's own transport: play / pause and how much lap is left -->
+        <div class="film-player">
+          <button class="film-player__btn" id="filmPlay" aria-label="Pause the demo">
+            <svg class="i-pause" width="14" height="16" viewBox="0 0 14 16" aria-hidden="true"><rect x="1" y="1" width="4" height="14" rx="1.4"/><rect x="9" y="1" width="4" height="14" rx="1.4"/></svg>
+            <svg class="i-play" width="14" height="16" viewBox="0 0 14 16" aria-hidden="true"><path d="M2 1.6 12.4 8 2 14.4Z"/></svg>
+          </button>
+          <span class="film-player__track"><span class="film-player__fill" id="filmFill"></span></span>
+          <span class="film-player__time" id="filmTime">–0:00</span>
         </div>
         </div>
       </div>
