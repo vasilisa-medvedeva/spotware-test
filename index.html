@@ -61,8 +61,15 @@
        phone used to push the whole label down into the gap */
     .film__row {
       width: 100%;
-      align-items: flex-start;
+      align-items: stretch;         /* both columns run the full height of the row */
       padding-top: 28px;            /* the title lines up with the phone's shoulder */
+    }
+    /* the left column: title at the top, arrow pushed to the bottom, where the
+       player sits on the other side */
+    .film__side {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
     }
 
     /* the film phone is a picture, not a control: this shield swallows taps so
@@ -254,12 +261,13 @@
       opacity: .78;
     }
 
-    /* ---- hand-off to the real thing: arrow and label read as one control ---- */
+    /* ---- hand-off to the real thing: one arrow, no caption ----
+       The words moved down to the prototype, where they describe the phone the
+       reader is already looking at. Up here the arrow only has to point. */
     .film-next {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      gap: clamp(14px, 1.6vw, 20px);
+      margin-top: auto;             /* bottom of the column = bottom of the player */
+      display: block;
+      width: fit-content;
       text-decoration: none;
       color: var(--ink-proto);
       transition: opacity .12s ease-out;
@@ -278,24 +286,6 @@
       font-size: clamp(19px, 1.9vw, 26px);
       line-height: 1;
       animation: scroll-nudge 1.8s ease-in-out infinite;
-    }
-    .film-next__text {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      text-align: left;
-    }
-    .film-next__eyebrow {
-      font-size: clamp(10px, .95vw, 12px);
-      font-weight: 600;
-      letter-spacing: .14em;
-      text-transform: uppercase;
-      opacity: .5;
-    }
-    .film-next__line {
-      font-size: clamp(14px, 1.35vw, 17px);
-      font-weight: 400;
-      line-height: 1.35;
     }
     @keyframes scroll-nudge {
       0%, 100% { transform: translateY(0); }
@@ -410,6 +400,9 @@
          anything -->
     <section class="film" id="film">
       <div class="film__row">
+        <!-- title and arrow share the left column: the arrow inherits DEMO's
+             edge and, pushed down, ends level with the player opposite -->
+        <div class="film__side">
         <header class="proto-label film-label">
           <h2 class="film-title">Demo</h2>
           <!-- the principles the redesign stands on (Figma: 'Из чего исходила') -->
@@ -419,6 +412,10 @@
             <li><strong>Money, not lots.</strong> Key numbers are shown in account currency — no side-math required.</li>
           </ul>
         </header>
+        <a class="film-next" href="#prototype" aria-label="Jump to the prototype below">
+          <span class="film-next__btn" aria-hidden="true">↓</span>
+        </a>
+        </div>
         <div class="film-stage">
         <div class="phone">
           <div class="frame">
@@ -446,19 +443,13 @@
         </div>
         </div>
       </div>
-      <a class="film-next" href="#prototype">
-        <span class="film-next__btn" aria-hidden="true">↓</span>
-        <span class="film-next__text">
-          <span class="film-next__eyebrow">Your turn</span>
-          <span class="film-next__line">The prototype below is the same build —<br>that one is yours to tap</span>
-        </span>
-      </a>
     </section>
 
     <!-- one prototype, opening on the start of the flow -->
     <section class="proto" id="prototype">
       <header class="proto-label">
-        <h2>Try the flow yourself</h2>
+        <h2>Your turn</h2>
+        <p>The same build the film just ran&nbsp;&mdash; this&nbsp;one&nbsp;is&nbsp;yours&nbsp;to&nbsp;tap.</p>
       </header>
       <div class="phone">
         <div class="frame">
