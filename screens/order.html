@@ -2510,30 +2510,30 @@
        phone while the scene plays. */
     const FILM = [
       // 0 · The frame this was designed inside
-      { act: { pin: 0, line: 'Визуальный язык cTrader сохранён: трейдер узнаёт свой интерфейс. Обновлено поведение, а не внешность' },
+      { act: { pin: 0, line: 'The visual language of cTrader is kept — the trader still recognises the app. What changed is behaviour, not looks' },
                                                     wait: 2600 },
       // 1 · Volume — cranked past the balance, then stepped back
       { drag: 1.0, ms: 1000,                        wait: 780,   // the numbers climb: lots, and money beside them
-        act: { pin: 1, line: 'Лоты никуда не делись, деньги добавлены рядом: опытный работает как привык, новичок видит цену решения' } },
-      { act: { pin: 2, line: 'Кнопка называет причину: не хватает €169' },
+        act: { pin: 1, line: 'Lots stayed, money joined them: the veteran works as always, the newcomer sees what the decision costs' } },
+      { act: { pin: 2, line: 'The button names the reason: €169 short' },
                                                     wait: 1690 },  // the red is read before it is fixed
       { sel: '.presets button[data-pct="50"]',      wait: 1100 },  // back inside the balance, the button wakes
       // 2 · Protection
       { sel: '#acBlock',                            wait: 1560,  // the sheet proposes 20 / 40 — the block's point gets read
-        act: { pin: 3, line: 'Stop loss и Take profit равного веса, суммы видны сразу' } },
+        act: { pin: 3, line: 'Stop loss and Take profit carry equal weight, the sums visible at once' } },
       { sel: '#swTrailing',                         wait: 455,   // the sheet is open by now
-        act: { pin: 4, line: 'Break-even стоял в общем ряду и без стопа не делал ничего. Теперь он внутри стопа — там, где работает' } },
+        act: { pin: 4, line: 'Break-even sat among the add-buttons and did nothing without a stop. It lives inside the stop now, where it works' } },
       { sel: '#addLevel',                           wait: 780 },   // one extra level, the ladder unfolds
       { sel: '.m-done',                             wait: 520 },   // Done, wherever it perches
       // 4 · Market range
       { sel: '#rowRange',                           wait: 455 },
       { sel: '#rangePlus',                          wait: 182,   // the range sheet is open
-        act: { pin: 5, line: 'Пресеты в деньгах, раньше — безымянное число в пунктах' } },
+        act: { pin: 5, line: 'Presets in money, where a nameless number in pips used to be' } },
       { sel: '#rangePlus',                          wait: 520 },
       { sel: '#rangeDone',                          wait: 585 },
       // 5 · Comment
       { sel: '#rowComment',                         wait: 780,   // the Comment sheet rides up
-        act: { pin: 6, line: 'Открывается шитом, форма не перестраивается под пальцем' } },
+        act: { pin: 6, line: 'Opens as a sheet: the form never rebuilds under the finger' } },
       { sel: '#commentField',                       wait: 585 },   // QWERTY rises
       { sel: '#kbQwerty [data-k="b"]',              wait: 40, fast: true },   // types 'Buy' at a quick hand's pace
       { sel: '#kbQwerty [data-k="u"]',              wait: 40, fast: true },
@@ -2543,11 +2543,11 @@
       { sel: '#placeBtn',                           wait: 2860, hide: true },  // spinner, ride, toast; the bubble leaves with the screen
       // 7 · Manage
       { sel: '[data-group="GERMANY 40|buy"]',       wait: 650,   // the group opens
-        act: { pin: 7, line: 'Риск в каждой строке: сколько заберёт стоп или «No stop»' } },
+        act: { pin: 7, line: 'Risk in every row: what the stop would take, or “No stop”' } },
       { sel: '[data-children="GERMANY 40|buy"] .pos-child:nth-child(2) [data-close]', wait: 1170 },
       // 8 · Close out
       { sel: '#closeAllBtn',                        wait: 715,   // the sheet rides up first
-        act: { pin: 8, line: 'Строками служат сами позиции, а не критерии: видно, что именно закрываешь' }, cueAfter: true },
+        act: { pin: 8, line: 'The rows are the positions themselves, not criteria — you see exactly what you close' }, cueAfter: true },
       { sel: '#closeList .crow:nth-child(1)',       wait: 455 },   // one put back
       { sel: '#closeList .crow:nth-child(2)',       wait: 585 },   // and another
       { sel: '#closeConfirm',                       wait: 1430 },
