@@ -605,16 +605,30 @@
     }
     document.getElementById('phoneTap').addEventListener('click', () => fullprotoOpen('tap'));
 
-    /* On a phone the deck is skipped entirely — the prototype IS the deliverable,
-       so it opens fullscreen on arrival. Closing it reveals the deck, and the
-       poster tap can bring it back. */
-    if (matchMedia('(max-width: 720px)').matches) {
-      fullprotoOpen('instant');
-    }
-    document.getElementById('fullprotoClose').addEventListener('click', () => {
+    function fullprotoClose() {
       fullproto.classList.remove('is-open');
       fullprotoFrame.src = 'about:blank';
       document.body.style.overflow = '';
+    }
+
+    /* On a phone the deck is skipped entirely — the prototype IS the deliverable,
+       so it opens fullscreen on arrival. Closing it reveals the deck, and the
+       poster tap can bring it back. */
+    const phoneMQ = matchMedia('(max-width: 720px)');
+    let openedInstantly = false;
+    if (phoneMQ.matches) { fullprotoOpen('instant'); openedInstantly = true; }
+    document.getElementById('fullprotoClose').addEventListener('click', () => {
+      openedInstantly = false;
+      fullprotoClose();
+    });
+
+    /* A narrow window dragged wide is a desktop again — and a desktop reads the
+       deck, not a phone-shaped frame stranded on a black field. Only the
+       arrival-time open is taken back; one the reader opened themselves stays. */
+    phoneMQ.addEventListener('change', e => {
+      if (e.matches || !openedInstantly) return;
+      openedInstantly = false;
+      fullprotoClose();
     });
     window.addEventListener('resize', () => {
       if (fullproto.classList.contains('is-open')) fullprotoFit();
