@@ -186,30 +186,6 @@
   .chart-canvas .edge-top { top: 0; }
   .chart-canvas .edge-bottom { top: 119px; }
 
-  /* ---- Market | Pending ---- */
-  .seg {
-    position: relative;
-    display: flex; align-items: center;
-    height: 56px; margin: 14px 16px 0; padding: 4px;
-    border-radius: 24px;
-    background: var(--surface-card);
-  }
-  .seg .seg-pill {
-    position: absolute; top: 4px; bottom: 4px; left: 4px;
-    width: calc(50% - 4px);
-    border-radius: var(--r-card);
-    background: var(--surface-inverse);
-    transition: transform 380ms var(--spring);
-  }
-  .seg.on-2 .seg-pill { transform: translateX(100%); }
-  .seg button {
-    position: relative; flex: 1; height: 48px;
-    display: flex; align-items: center; justify-content: center; gap: 8px;
-    color: var(--text-secondary);
-    transition: color 240ms ease, opacity 90ms ease-out;
-  }
-  .seg button.is-on { color: var(--text-on-inverse); }
-
   /* ---- the white card ---- */
   .main-card {
     margin-top: 16px;
@@ -1083,13 +1059,6 @@
         </div>
       </div>
 
-      <!-- Market | Pending -->
-      <div class="seg" id="segList">
-        <div class="seg-pill"></div>
-        <button class="t-button is-on" id="segMarket">Market</button>
-        <button class="t-button" id="segPending">Pending</button>
-      </div>
-
       <div class="main-card">
         <!-- Sell | Buy -->
         <div class="sellbuy">
@@ -1202,10 +1171,9 @@
           <svg width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/></svg>
         </span>
       </button>
-      <button class="footer-margin pressable" id="footerMargin">
+      <div class="footer-margin" id="footerMargin">
         <span class="t-control" id="footerText">€116.85 / 1000.00</span>
-        <svg width="16" height="16" viewBox="0 0 16 16"><path d="M6 3.5L10.5 8 6 12.5" stroke="#232326" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
-      </button>
+      </div>
     </div>
   </div>
 
@@ -1629,16 +1597,6 @@
   $('optSell').addEventListener('click', () => setSide('sell'));
   $('optBuy').addEventListener('click', () => setSide('buy'));
 
-  /* ===================== market | pending ===================== */
-  $('segMarket').addEventListener('click', () => segTo(0));
-  $('segPending').addEventListener('click', () => segTo(1));
-  function segTo(i) {
-    $('segList').classList.toggle('on-2', i === 1);
-    $('segMarket').classList.toggle('is-on', i === 0);
-    $('segPending').classList.toggle('is-on', i === 1);
-    if (i === 1) track('flow_pending_peek');
-  }
-
   /* ===================== auto close ===================== */
   function renderAutoClose() {
     const sl = state.lots * state.slPips * EUR_PER_PIP_LOT;
@@ -1853,7 +1811,6 @@
 
   /* ===================== share ===================== */
   $('shareBtn').addEventListener('click', () => track('flow_share'));
-  $('footerMargin').addEventListener('click', () => track('flow_margin_detail'));
 
   /* ===================== place order → Positions =====================
      The button holds the wait itself: the label fades out, a spinner turns
