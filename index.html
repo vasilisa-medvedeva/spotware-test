@@ -243,6 +243,16 @@
     }
 
     .proto-label { margin: 0; text-align: left; }
+    /* a hand-drawn flourish: underline first, then a scribble that ends
+       pointing at the phone — "over there, go on" */
+    .proto-arrow {
+      display: block;
+      width: clamp(220px, 26vw, 340px);
+      height: auto;
+      margin-top: 6px;
+      color: var(--ink-proto);
+      overflow: visible;
+    }
     .proto-label h2 {
       margin: 0;
       max-width: 8em;
@@ -381,6 +391,7 @@
       .proto, .film__row { flex-direction: column; gap: 28px; }
       .proto-label { text-align: center; }
       .proto-label h2 { max-width: none; }
+      .proto-arrow { display: none; }
       /* the inline phone is a poster here — the first tap goes fullscreen */
       .phone-tap {
         display: block;
@@ -447,7 +458,17 @@
     <!-- one prototype, opening on the start of the flow -->
     <section class="proto" id="prototype">
       <header class="proto-label">
-        <h2>Your turn</h2>
+        <h2>Try it yourself</h2>
+        <svg class="proto-arrow" viewBox="0 0 470 250" fill="none" aria-hidden="true">
+          <path d="M12 16 C 110 6 235 8 330 14
+                   C 250 44 130 52 44 82
+                   C 108 96 152 98 172 112
+                   C 130 128 92 142 74 160
+                   C 150 192 300 200 408 188"
+                stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M372 170 C 388 178 400 184 408 188 C 396 196 386 204 378 214"
+                stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
       </header>
       <div class="phone">
         <div class="frame">
